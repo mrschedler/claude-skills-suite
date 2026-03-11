@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "lens": {
+      "type": "string",
+      "description": "Review lens name (e.g., counter-review, security-review)"
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": ["critical", "high", "medium", "low"]
+          },
+          "category": {
+            "type": "string",
+            "description": "Finding category (e.g., security, performance, completeness)"
+          },
+          "title": {
+            "type": "string",
+            "description": "One-line summary of the finding"
+          },
+          "description": {
+            "type": "string",
+            "description": "Detailed description of the issue"
+          },
+          "location": {
+            "type": "string",
+            "description": "File path and line number (e.g., src/auth.ts:42)"
+          },
+          "recommendation": {
+            "type": "string",
+            "description": "Suggested fix or improvement"
+          }
+        },
+        "required": ["severity", "title", "description"]
+      }
+    },
+    "summary": {
+      "type": "string",
+      "description": "Executive summary of all findings"
+    }
+  },
+  "required": ["lens", "findings", "summary"]
+}

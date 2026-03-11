@@ -1,0 +1,1 @@
+/Users/byrum_work/.claude/hooks/session-start.sh
