@@ -13,3 +13,11 @@ compact/
 .DS_Store
 **/.DS_Store
 skills/vibe/SKILL.md.backup
+
+# CLI driver skills (contain local path resolution, not portable)
+skills/codex/
+skills/cursor/
+skills/vibe/
+skills/copilot/
+skills/gemini/
+errors.log

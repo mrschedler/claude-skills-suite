@@ -1,6 +1,7 @@
 ---
 name: copilot
 description: Driver skill for Copilot CLI syntax, flags, and sandbox modes. Load this before spawning any Copilot call. Use when other skills need Copilot or user says "use Copilot".
+disable-model-invocation: true
 ---
 
 # Copilot CLI Driver
@@ -14,14 +15,13 @@ their workflows. It is not triggered directly by the user in most cases.
 `run_in_background` and subagent Bash calls spawn non-interactive subshells
 that do NOT source `.zshrc`/`.zprofile`. Custom PATH entries are missing.
 
-**Use the absolute path for all Copilot invocations:**
-
-```
-/opt/homebrew/bin/copilot
-```
+**Always resolve the path dynamically:**
 
 ```bash
-COPILOT="/opt/homebrew/bin/copilot"
+COPILOT=$(command -v copilot 2>/dev/null)
+test -x "$COPILOT" || COPILOT="$HOME/.local/bin/copilot"
+test -x "$COPILOT" || COPILOT="/opt/homebrew/bin/copilot"
+test -x "$COPILOT" || { echo "Copilot CLI unavailable — skipping"; exit 0; }
 ```
 
 Use `"$COPILOT"` in every invocation. Do not use bare `copilot`.

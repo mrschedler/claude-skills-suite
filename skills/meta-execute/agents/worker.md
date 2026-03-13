@@ -68,6 +68,15 @@ After writing each file:
 After all files are written:
   c) Run unit tests for modified files — fix until green
   d) If no tests exist for this unit, write at least one test covering the primary acceptance criterion
+  e) Integration wiring check (MANDATORY):
+     - Every new export MUST have at least one consumer (import, route registration, test).
+       If you created a function/class/constant that nothing calls, wire it or remove it.
+     - Every new env var or config key reference MUST have a documented default in
+       .env.example or the project's config file. Add it if missing.
+     - Every resource acquired (DB connection, event listener, timer, child process, PTY)
+       MUST have cleanup in error/shutdown/unmount paths. No "open without close."
+     - No hardcoded placeholder IDs or session values. If you need a dynamic value and
+       don't have it, STOP and report it as a blocker — do NOT use a placeholder string.
 
 You CANNOT report success until step 3 passes. If tests fail after 3 attempts,
 report the failure with the test output — do not skip tests.
@@ -84,5 +93,7 @@ REMINDER — re-read before finishing:
 - Every file must be COMPLETE. No truncation. No stubs. No "implement later".
 - Every abstraction must be justified by 2+ callers.
 - Tests must pass before reporting success.
+- Every export must be wired to a consumer. Every resource must have cleanup.
+- No placeholder strings where dynamic values belong. STOP if you can't wire it.
 </rules>
 ```

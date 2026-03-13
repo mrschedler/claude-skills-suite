@@ -1,12 +1,12 @@
 ---
 name: meta-review
-description: Comprehensive multi-model project review across 7 lenses and 3 model families in parallel. Use for full project review, pre-deploy audit, or milestone quality gate. Not for single-lens reviews.
+description: Comprehensive multi-model project review across 10-11 lenses and 3 model families in parallel. Use for full project review, pre-deploy audit, or milestone quality gate. Not for single-lens reviews.
 ---
 
 # meta-review
 
 Meta-skill that runs SAST pre-scan (Semgrep, SonarQube, local CLIs), then
-fans out 8 review lenses across 3 model families in parallel with SAST
+fans out 10-11 review lenses across 3 model families in parallel with SAST
 context injected, then synthesizes into a unified report with confidence scoring.
 
 ## Architecture
@@ -20,20 +20,27 @@ meta-review --> SAST pre-scan --+-- ruff / biome / oxlint / gitleaks (local CLIs
                    |
                    v  $SAST_SUMMARY injected into all lens prompts
                    |
-                   +-- counter-review ----[Sonnet | Gemini]
-                   +-- security-review ---[Sonnet | Codex]
-                   +-- test-review ------[Sonnet]
-                   +-- refactor-review ---[Sonnet | Codex]       --> synthesis
-                   +-- drift-review -----[Sonnet | Gemini]
-                   +-- completeness-review -[Sonnet | Codex]
-                   +-- compliance-review -[Sonnet]
+                   +-- counter-review ------[Sonnet | Gemini]
+                   +-- security-review -----[Sonnet | Codex]
+                   +-- test-review --------[Sonnet]
+                   +-- refactor-review -----[Sonnet | Codex]
+                   +-- drift-review -------[Sonnet | Gemini]
+                   +-- completeness-review -[Sonnet | Codex]       --> synthesis
+                   +-- compliance-review ---[Sonnet]
+                   +-- integration-review --[Sonnet | Codex]
+                   +-- perf-review --------[Sonnet | Codex]
+                   +-- dep-audit ----------[Sonnet | Codex]
+                   +-- log-review ---------[Sonnet | Codex]
+                   +-- breaking-change ----[Sonnet | Codex]
+                   +-- ui-review ----------[Sonnet | Codex]  (frontend only)
 ```
 
-Total: SAST pre-scan + **12 LLM reviews** (7 Sonnet + 3 Codex + 2 Gemini), then 1 synthesis pass.
+Total: SAST pre-scan + **20-22 LLM reviews** (12-13 Sonnet + 8-9 Codex + 2 Gemini), then 1 synthesis pass.
+ui-review is conditional — only included if frontend files (`*.tsx`, `*.jsx`, `*.vue`, `*.svelte`, `*.css`) exist in the project.
 
 **Model assignment rationale:**
-- **Sonnet** (all 8): primary reviewer, full codebase access, no concurrency limit
-- **Codex** (security, refactor, completeness): code-centric lenses where static analysis shines
+- **Sonnet** (all 12-13): primary reviewer, full codebase access, no concurrency limit
+- **Codex** (security, refactor, completeness, integration, perf, dep-audit, log-review, breaking-change-review, +ui if frontend): code-centric lenses where static analysis shines
 - **Gemini** (counter, drift): architecture/strategy lenses that benefit from web grounding
 
 ## Inputs
@@ -48,8 +55,8 @@ Total: SAST pre-scan + **12 LLM reviews** (7 Sonnet + 3 Codex + 2 Gemini), then 
 
 ## Outputs
 
-- 7 x 3 = 21 individual lens findings in the artifact DB (skill=`{lens}`, phase=`findings`, label=`sonnet`/`codex`/`gemini`)
-- 1 unified synthesis on disk: `artifacts/reviews/review-synthesis.md`
+- 8-9 lenses x 2-3 models = 16-18 individual lens findings in the artifact DB (skill=`{lens}`, phase=`findings`, label=`sonnet`/`codex`/`gemini`)
+- 1 unified synthesis on disk: `artifacts/reviews/review-synthesis-N.md` (incrementally numbered — never overwrites previous runs)
 
 ## Instructions
 
@@ -202,16 +209,24 @@ The 7 review lenses with their model assignments:
 | drift-review | `/drift-review` | YES | — | YES |
 | completeness-review | `/completeness-review` | YES | YES | — |
 | compliance-review | `/compliance-review` | YES | — | — |
+| integration-review | `/integration-review` | YES | YES | — |
+| perf-review | `/perf-review` | YES | YES | — |
+| dep-audit | `/dep-audit` | YES | YES | — |
+| log-review | `/log-review` | YES | YES | — |
+| breaking-change-review | `/breaking-change-review` | YES | YES | — |
+| ui-review | `/ui-review` | YES | YES | — |
+
+**ui-review is conditional** — only include if frontend files exist (`*.tsx`, `*.jsx`, `*.vue`, `*.svelte`, `*.css`). Skip for backend-only projects.
 
 **Do NOT add lenses to Codex or Gemini beyond what is listed above.**
-Sonnet covers all 7. Codex covers 3. Gemini covers 2. Total = 12 reviews.
+Sonnet covers all 12-13. Codex covers 8-9. Gemini covers 2. Total = 20-22 reviews.
 
 ---
 
 #### Step 2a: Launch Sonnet subagents (all 7 at once — OK)
 
 Spawn the `review-lens` agent (`subagent_type: "review-lens"`) for each lens.
-All 7 can run simultaneously — Sonnet subagents have no concurrency limit.
+All 12-13 can run simultaneously — Sonnet subagents have no concurrency limit.
 
 Each agent:
 1. Receives the lens name, the atomic skill's review instructions, AND the
@@ -231,12 +246,25 @@ db_upsert '{lens}' 'findings' 'sonnet' "$AGENT_RESPONSE"
 Subagents do NOT have access to `artifacts/db.sh` or the project DB path.
 Never rely on subagents to write to the DB — they will silently fail.
 
-#### Step 2b: Launch Codex (3 lenses — all 3 at once)
+#### Step 2b: Launch Codex (8-9 lenses — max 5 concurrent, queue the rest)
 
 Use the `/codex` skill for invocation syntax.
 
-Launch exactly **3** Codex processes for: `security-review`, `refactor-review`,
-`completeness-review`. All 3 fit within the 5-slot limit — no queuing needed.
+Total Codex lenses: `security-review`, `refactor-review`,
+`completeness-review`, `integration-review`, `perf-review`, `dep-audit`,
+`log-review`, `breaking-change-review`, and `ui-review` (if frontend).
+
+**CONCURRENCY: Max 5 Codex processes at a time (hard limit from general.md).**
+
+**Wave 1 (launch immediately, 5 slots):**
+`security-review`, `refactor-review`, `completeness-review`, `integration-review`, `perf-review`
+
+**Wave 2 (backfill as Wave 1 slots free — each completion triggers the next):**
+`dep-audit`, `log-review`, `breaking-change-review`, `ui-review` (if frontend)
+
+Do NOT launch Wave 2 all at once — backfill one-for-one as each Wave 1
+process finishes. If a Wave 1 slot frees up, immediately dispatch the next
+queued lens. This keeps 5 slots saturated until the queue is empty.
 
 Each Codex exec:
 1. Receives a review prompt assembled from the atomic skill's instructions
@@ -285,17 +313,19 @@ Load `/copilot` for invocation syntax. Key params: `--add-dir <project-root>`,
 `copilot` label counts the same as `gemini` for confidence scoring.
 If both Gemini and Copilot fail, skip and note it in synthesis.
 
-**Steps 2a, 2b, and 2c can all launch simultaneously** — there is no
-queuing needed since counts are within limits (7 Sonnet, 3 Codex, 2 Gemini/Copilot).
+**Steps 2a, 2b, and 2c all launch simultaneously** — Sonnet (no limit) and
+Gemini (2 slots, within limit) go immediately. Codex Wave 1 (5 slots) goes
+immediately. Codex Wave 2 backfills one-for-one as Wave 1 slots free up.
+Never exceed 5 concurrent Codex processes.
 
 ---
 
 ### Phase 3: Wait for Completion
 
-All 12 reviews must complete before synthesis begins:
+All 20-22 reviews must complete before synthesis begins:
 
-- Sonnet: confirm all 7 subagents returned
-- Codex: confirm 3/3 via DB: `source artifacts/db.sh && db_exists '{lens}' 'findings' 'codex'` for security, refactor, completeness
+- Sonnet: confirm all 12-13 subagents returned
+- Codex: confirm 8-9 via DB: `source artifacts/db.sh && db_exists '{lens}' 'findings' 'codex'` for Wave 1 (security, refactor, completeness, integration, perf) and Wave 2 (dep-audit, log-review, breaking-change-review, +ui if frontend)
 - Gemini: confirm 2/2 via DB: `source artifacts/db.sh && db_exists '{lens}' 'findings' 'gemini'` for counter, drift
 
 If any individual review fails (timeout, crash, empty output), note the
@@ -317,7 +347,20 @@ CODEX=$(db_read '{lens}' 'findings' 'codex')    # only for 3 lenses
 GEMINI=$(db_read '{lens}' 'findings' 'gemini')   # only for 2 lenses
 ```
 
-Synthesize into `artifacts/reviews/review-synthesis.md` (this file STAYS on disk — it is the final output).
+**Always create a brand-new, incrementally numbered synthesis file** — never
+append to, merge with, or build on top of an existing one. Each meta-review
+produces a complete, self-contained synthesis written from scratch.
+
+Naming convention: `artifacts/reviews/review-synthesis-N.md` where N is the
+next integer in sequence. Check existing files to determine N:
+```bash
+ls artifacts/reviews/review-synthesis-*.md 2>/dev/null | sort -t- -k3 -n | tail -1
+```
+- If no files exist → write `review-synthesis-1.md`
+- If `review-synthesis-3.md` is the latest → write `review-synthesis-4.md`
+
+This preserves the full review history so changes can be tracked over time.
+The latest file is always the current synthesis.
 
 The synthesis document structure:
 
@@ -360,8 +403,8 @@ single-lens finding.
 - Total findings: N (after dedup)
 - By confidence: HIGH: X, MEDIUM: Y
 - SAST pre-scan: Semgrep (N), SonarQube (N), local tools (N) — or "skipped"
-- Reviews completed: 12 (7 Sonnet + 3 Codex + 2 Gemini), note any failures
-- Multi-model lenses: security, refactor, completeness (Codex), counter, drift (Gemini)
+- Reviews completed: 16-18 (10-11 Sonnet + 6-7 Codex + 2 Gemini), note any failures
+- Multi-model lenses: security, refactor, completeness, integration, +ui (Codex), counter, drift (Gemini)
 
 ## SAST Findings (Pre-Scan)
 [BLOCKER/CRITICAL findings from static analysis tools — these are machine-

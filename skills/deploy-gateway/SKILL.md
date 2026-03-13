@@ -1,6 +1,7 @@
 ---
 name: deploy-gateway
 description: Use when deploying, rebuilding, or restarting the MCP gateway container. Handles CI images, manual build, Traefik labels, health checks, and log verification.
+disable-model-invocation: true
 argument-hint: [--manual-build to build locally instead of using CI image, --force to skip confirmation, --rollback <sha> to deploy a previous version]
 ---
 

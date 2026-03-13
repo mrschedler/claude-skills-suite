@@ -1,6 +1,7 @@
 ---
 name: cursor
 description: Driver skill for Cursor Agent CLI (headless) syntax, flags, and modes. Load this before spawning any headless Cursor call. Use when other skills need Cursor or user says "use Cursor".
+disable-model-invocation: true
 ---
 
 # Cursor Agent CLI Driver
@@ -91,15 +92,19 @@ enters interactive TUI mode which hangs in subshells.
 |---|---|
 | `-p, --print` | Non-interactive mode (REQUIRED for headless) |
 | `--trust` | Trust workspace without prompting (REQUIRED for headless) |
-| `-f, --force` / `--yolo` | Allow file modifications without confirmation |
+| `-f, --force` / `--yolo` | Auto-approve command/tool execution; not a write barrier |
 | `--workspace <path>` | Set working directory |
 | `--model <id>` | Override model |
-| `--mode ask` | Read-only Q&A (no file writes) |
-| `--mode plan` | Read-only planning/analysis |
+| `--mode ask` | Q&A / analysis mode; do not assume read-only safety |
+| `--mode plan` | Planning mode; do not assume read-only safety |
 | `--output-format <fmt>` | `text` (default), `json`, `stream-json` |
-| `-o <file>` | Write final message to file |
 
-**Without `--force`, headless mode proposes changes but does NOT apply them.**
+**Do not treat `--force` as a write barrier.** On the current CLI build,
+plain `-p` can still modify files, and `--mode ask` / `--mode plan` are not
+reliably read-only in practice. When the main worktree must stay untouched,
+run in an isolated worktree or disposable copy.
+
+To capture output in a file, redirect stdout: `> OUTPUT_FILE`.
 
 ## Model Selection
 
@@ -138,20 +143,22 @@ $GTIMEOUT 120 "$AGENT" -p --trust --force --workspace /path/to/project \
   "PROMPT" 2>/dev/null
 ```
 
-### Ask Mode — Read-Only Q&A
+### Ask Mode — Q&A / Analysis
 
-Agent can read files and answer questions but cannot modify anything. Best for
-analysis and understanding tasks.
+Use for analysis and understanding tasks. The CLI help describes this as
+read-only, but the current build has been observed to modify files anyway, so
+do not trust it as a safety boundary.
 
 ```bash
 $GTIMEOUT 120 "$AGENT" -p --trust --mode ask --workspace /path/to/project \
   "PROMPT" 2>/dev/null
 ```
 
-### Plan Mode — Read-Only Planning
+### Plan Mode — Planning / Analysis
 
-Agent analyzes the codebase and proposes a plan without executing. Returns
-structured analysis of what it would do.
+Use when you want planning-oriented responses. The CLI help describes this as
+read-only, but the current build has been observed to modify files anyway, so
+do not treat it as a guaranteed dry run.
 
 ```bash
 $GTIMEOUT 120 "$AGENT" -p --trust --mode plan --workspace /path/to/project \
@@ -163,12 +170,21 @@ $GTIMEOUT 120 "$AGENT" -p --trust --mode plan --workspace /path/to/project \
 **Every template below includes `--trust`** — required for headless mode to
 avoid interactive workspace trust prompts.
 
-### Code Review (Read-Only)
+### Code Review (Analysis; isolate if repo must stay clean)
 
 ```bash
 RESULT=$($GTIMEOUT 120 "$AGENT" -p --trust --mode ask --workspace /path/to/project \
   "Review this codebase for security issues, focusing on input validation and auth." 2>/dev/null)
 echo "$RESULT" > OUTPUT_FILE
+```
+
+For git repos where analysis must not touch the main tree, prefer:
+
+```bash
+$GTIMEOUT 120 "$AGENT" -p --trust --mode ask -w review-pass \
+  --workspace /path/to/project \
+  "Review this codebase for security issues, focusing on input validation and auth." \
+  2>/dev/null > OUTPUT_FILE
 ```
 
 ### Code Generation (Write)
@@ -290,6 +306,18 @@ if [ "$IS_ERROR" = "true" ]; then
 fi
 ```
 
+For analysis tasks against a non-disposable git checkout, detect unexpected
+mutations after the run:
+
+```bash
+BEFORE=$(git -C /path/to/project status --porcelain 2>/dev/null || true)
+# ... run Cursor analysis task ...
+AFTER=$(git -C /path/to/project status --porcelain 2>/dev/null || true)
+if [ "$AFTER" != "$BEFORE" ]; then
+  echo "Cursor modified the tree during analysis — inspect diff before continuing"
+fi
+```
+
 ## Critical Gotchas
 
 1. **`-p` is mandatory for headless** — without it, the CLI enters interactive
@@ -299,14 +327,15 @@ fi
 2. **`--trust` is mandatory for headless** — without it, the CLI prompts for
    workspace trust interactively and hangs.
 
-3. **`--force` is NOT default** — without it, headless mode proposes changes
-   but does not write files. This is correct for review tasks but means
-   generation tasks silently do nothing. Always include `--force` for write
-   tasks.
+3. **`--force` is not a write gate on the current CLI** — on the
+   `2026.03.11-6dfa30c` build, plain `-p` wrote files in disposable tests.
+   Use `--force` for unattended command/tool execution, but do not rely on
+   omitting it to protect the workspace.
 
-4. **`--mode ask` and `--mode plan` are read-only** — they cannot modify files
-   even with `--force`. Use the default agent mode (no `--mode` flag) for
-   write tasks.
+4. **`--mode ask` and `--mode plan` are not reliably read-only** — despite the
+   CLI help text, both modes wrote files in disposable tests on 2026-03-13.
+   Use isolated worktrees or disposable copies when analysis must be
+   non-destructive.
 
 5. **Always wrap with `$GTIMEOUT`** — the CLI can hang on network issues,
    large codebases, or MCP server failures. 120s for reviews, 180s for
@@ -329,7 +358,11 @@ fi
 10. **Worktrees require a git repo** — `-w` fails silently in non-git
     directories. Only use for git-tracked projects.
 
-11. **Session resume requires the session ID** — get it from JSON output's
+11. **There is no `-o` output flag on the current CLI** — `agent -p ... -o file`
+    exits `1` with no stderr. Capture output with stdout redirection instead:
+    `"$AGENT" -p ... > OUTPUT_FILE` or `--output-format json > OUTPUT_FILE`.
+
+12. **Session resume requires the session ID** — get it from JSON output's
     `session_id` field, or use `agent ls` to list recent sessions.
 
 ## Flag Reference
@@ -337,7 +370,7 @@ fi
 | Short | Long | Purpose |
 |---|---|---|
 | `-p` | `--print` | Headless mode (**REQUIRED**) |
-| `-f` | `--force` | Allow file modifications |
+| `-f` | `--force` | Auto-approve commands/tool execution |
 | `-c` | `--cloud` | Cloud mode |
 | `-w` | `--worktree` | Isolated git worktree |
 | `-H` | `--header` | Custom request header |
@@ -345,11 +378,12 @@ fi
 | — | `--yolo` | Alias for `--force` |
 | — | `--workspace` | Working directory |
 | — | `--model` | Model override |
-| — | `--mode` | `ask` (read-only) or `plan` (read-only) |
+| — | `--mode` | `ask` or `plan`; neither is a reliable safety boundary |
 | — | `--output-format` | `text`, `json`, `stream-json` |
 | — | `--approve-mcps` | Auto-approve MCP servers |
 | — | `--resume` | Resume a session by ID |
 | — | `--continue` | Resume most recent session |
+| — | `--plan` | Shorthand for `--mode plan` |
 | — | `--sandbox` | `enabled` or `disabled` |
 
 ## Fallback Behavior
@@ -390,7 +424,7 @@ Skill (meta-execute): Cursor writes code in an isolated worktree.
 ```
 
 ```
-Skill (quick analysis): Fast read-only check with a cheap model.
+Skill (quick analysis): Fast analysis pass with a cheap model.
 --> $GTIMEOUT 60 "$AGENT" -p --trust --mode ask --model sonnet-4.6 \
       --workspace /path/to/project \
       "List all exported functions in src/api/ that lack input validation" 2>/dev/null

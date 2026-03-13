@@ -35,11 +35,17 @@ Delegation key:
 
 | Input | Source | Required |
 |---|---|---|
-| review-synthesis.md | `artifacts/reviews/` | Yes (or DB) |
+| review-synthesis-N.md | `artifacts/reviews/` | Yes (or DB) |
 | project-context.md | Project root | Yes |
 | Full codebase | Project root | Yes (for context assembly) |
 
-**Alternative input**: If no `review-synthesis.md` exists, check the artifact
+**Finding the latest synthesis**: Syntheses are incrementally numbered.
+Always use the highest-numbered file:
+```bash
+ls artifacts/reviews/review-synthesis-*.md 2>/dev/null | sort -t- -k3 -n | tail -1
+```
+
+**Alternative input**: If no synthesis file exists, check the artifact
 DB for standalone review findings:
 ```bash
 source artifacts/db.sh
@@ -56,8 +62,12 @@ db_read_all '{lens}' 'findings'
 
 ### Phase 1: Parse Findings [Inline]
 
-1. Read `artifacts/reviews/review-synthesis.md`. If it doesn't exist, check
-   the artifact DB for the most recent review findings across all lenses.
+1. Find and read the latest synthesis file:
+   ```bash
+   ls artifacts/reviews/review-synthesis-*.md 2>/dev/null | sort -t- -k3 -n | tail -1
+   ```
+   If no synthesis file exists, check the artifact DB for the most recent
+   review findings across all lenses.
 
 2. Extract every finding that has a **specific, actionable fix**. Skip:
    - Informational findings with no code change needed
@@ -73,7 +83,12 @@ db_read_all '{lens}' 'findings'
    - **Finding**: what's wrong
    - **Fix**: what needs to change
 
-4. Group findings that touch the **same files** into a single fix unit.
+4. **Logging findings**: If findings from `log-review` are present, delegate
+   those to `/log-gen` instead of implementing them as generic fix units.
+   Log-gen understands logging patterns, logger setup, and structured logging
+   conventions. Pass the log-review findings directly to log-gen.
+
+5. Group remaining findings that touch the **same files** into a single fix unit.
    Rationale: a worker already has those files in context, so batching
    related findings reduces total worker invocations and avoids merge
    conflicts between fixes to the same file.
@@ -229,8 +244,8 @@ If any fixes failed, recommend the user either:
 
 ## Error Handling
 
-- If `review-synthesis.md` is missing and no DB findings exist, tell the
-  user to run `/meta-review` first.
+- If no `review-synthesis-*.md` files exist and no DB findings exist, tell
+  the user to run `/meta-review` first.
 - If Codex is unavailable, fall back to Sonnet subagents silently.
 - If a fix unit touches files currently modified by another fix unit
   (shouldn't happen if grouping is correct), serialize them — do not
@@ -241,8 +256,8 @@ If any fixes failed, recommend the user either:
 
 ```
 User: [after meta-review] "Fix the issues"
-Action: Parse review-synthesis.md. Present actionable findings as numbered
-        list. Wait for user to pick which to fix. Execute approved fixes.
+Action: Find latest review-synthesis-N.md. Present actionable findings as
+        numbered list. Wait for user to pick which to fix. Execute approved fixes.
 ```
 
 ```

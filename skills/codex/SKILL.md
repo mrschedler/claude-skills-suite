@@ -1,6 +1,7 @@
 ---
 name: codex
 description: Driver skill for Codex CLI syntax, flags, and sandbox modes. Load this before spawning any Codex call. Use when other skills need Codex or user says "use Codex".
+disable-model-invocation: true
 ---
 
 # Codex CLI Driver
@@ -14,18 +15,23 @@ their workflows. It is not triggered directly by the user in most cases.
 `run_in_background` and subagent Bash calls spawn non-interactive subshells
 that do NOT source `.zshrc`/`.zprofile`. Custom PATH entries are missing.
 
-**Always resolve the path dynamically** — Codex may be installed via nvm (node)
-or Homebrew depending on system state:
+**Always resolve the path dynamically** — on this machine Codex is installed via
+Homebrew, but some environments still install it under NVM. Avoid unmatched
+glob patterns; `zsh` will throw `no matches found` before the fallback runs.
 
 ```bash
-CODEX=$(ls ~/.nvm/versions/node/*/bin/codex 2>/dev/null | sort -V | tail -1)
+CODEX=$(command -v codex 2>/dev/null)
 test -x "$CODEX" || CODEX="/opt/homebrew/bin/codex"
+if [ ! -x "$CODEX" ] && [ -d "$HOME/.nvm/versions/node" ]; then
+  CODEX=$(find "$HOME/.nvm/versions/node" -path '*/bin/codex' -type f 2>/dev/null | sort -V | tail -1)
+fi
 test -x "$CODEX" || { echo "Codex unavailable — skipping"; }
 export PATH="$(dirname "$CODEX"):$PATH"
 ```
 
 Use `"$CODEX"` in every invocation. Do not use bare `codex`. The PATH export
-is required for NVM installs because the `codex` wrapper uses `/usr/bin/env node`.
+is only required when Codex resolves from an NVM-managed Node install because
+the wrapper uses `/usr/bin/env node`.
 
 ## Timeout Binary
 
@@ -81,13 +87,14 @@ echo $! >> /tmp/codex-slots.pid
 Codex loads all MCP servers from `~/.codex/config.toml` on every `exec` call.
 This adds startup latency (3-10s) and can hang if a server fails to connect.
 
-**To disable MCP servers** for lightweight exec calls (reviews, simple prompts):
+**To disable MCP servers** for lightweight exec calls (reviews, simple prompts),
+override only the keys that actually exist in `~/.codex/config.toml`.
+Stale server names can cause false diagnostics and leave MCP enabled.
 
 ```bash
 $GTIMEOUT 120 "$CODEX" exec --ephemeral --skip-git-repo-check \
-  -c 'mcp_servers.homelab-gateway.enabled=false' \
-  -c 'mcp_servers.ssh-tower.enabled=false' \
-  -c 'mcp_servers.github.enabled=false' \
+  -c 'mcp_servers.homelab_gateway.enabled=false' \
+  -c 'mcp_servers.ssh_manager.enabled=false' \
   "PROMPT" 2>/dev/null
 ```
 
@@ -117,10 +124,11 @@ or `codex app-server` in the background. Fix the CLI invocation instead.
 
 ## Approval Flag Reality Check
 
-On this machine's `codex-cli 0.104.0`, `codex exec` accepts `--full-auto` but
-rejects `-a/--ask-for-approval`. Older docs and examples may still mention
-approval flags, but for this repo's headless `exec` templates, treat the local
-CLI help as the source of truth.
+On this machine's `codex-cli 0.104.0`, top-level `codex --help` lists
+`-a/--ask-for-approval`, but `codex exec --help` does **not**, and
+`codex exec -a never` fails with `unexpected argument '-a'`. For headless
+`exec` templates, use explicit sandbox flags or `--full-auto`, and treat
+`codex exec --help` as the source of truth.
 
 ## Task-Type Templates
 
@@ -153,9 +161,8 @@ mode over `--full-auto` so the write policy is obvious:
 
 ```bash
 $GTIMEOUT 180 "$CODEX" exec --ephemeral --skip-git-repo-check \
-  -c 'mcp_servers.homelab-gateway.enabled=false' \
-  -c 'mcp_servers.ssh-tower.enabled=false' \
-  -c 'mcp_servers.github.enabled=false' \
+  -c 'mcp_servers.homelab_gateway.enabled=false' \
+  -c 'mcp_servers.ssh_manager.enabled=false' \
   --sandbox workspace-write -C /path/to/project "Add input validation to all API route handlers" 2>/dev/null
 ```
 

@@ -1,7 +1,6 @@
 ---
 name: meta-deep-research-execute
 description: "Internal Opus subagent for deep research. Runs ~20 workers across 3 model families with adversarial debate. Never invoke directly — dispatched by /meta-deep-research."
-disable-model-invocation: true
 ---
 
 # meta-deep-research-execute

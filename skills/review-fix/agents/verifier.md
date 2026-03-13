@@ -32,10 +32,31 @@ Look at the modified files for:
 - Broken imports or references
 - Type errors introduced by the change
 - Missing error handling at system boundaries
-- Stubs or truncated code (automatic FAIL):
+- Stubs, placeholders, or truncated code (automatic FAIL):
   ```bash
-  grep -rn '// \.\.\.\|implement later\|placeholder\|not yet implemented' [modified-files] || true
+  # Comment markers and stubs
+  grep -rn '// \.\.\.\|TODO\|FIXME\|HACK\|XXX\|PLACEHOLDER\|TEMP\|TEMPORARY' [modified-files] || true
+  grep -rn 'implement later\|not yet implemented\|placeholder\|not implemented' [modified-files] || true
+  grep -rn 'throw new Error.*not implemented\|raise NotImplementedError\|todo!(\|unimplemented!(' [modified-files] || true
+
+  # Empty bodies and swallowed errors
+  grep -rn 'catch.*{[[:space:]]*}\|except.*pass\|{ }' [modified-files] || true
+
+  # Placeholder values
+  grep -rn "'axys-server'\|'test-session'\|'default-session'\|'placeholder'" [modified-files] || true
+  grep -rn '"changeme"\|"password"\|"secret"\|"foo"\|"bar"\|"asdf"' [modified-files] || true
+
+  # Debug artifacts in production code
+  grep -rn 'console\.log\|console\.debug\|debugger\|alert(' [modified-files] | grep -v '\.test\.\|\.spec\.\|__test' || true
   ```
+
+## STEP 2b: Wiring Regression Check
+
+Verify the fix didn't break integration:
+- New exports introduced by the fix: are they consumed? Unused new exports = PARTIAL.
+- New env vars or config keys: documented in `.env.example`? Missing = PARTIAL.
+- Resources acquired by new code: cleanup exists in error/shutdown paths? Missing = FAIL.
+- Hardcoded placeholder IDs/sessions where dynamic values belong: automatic FAIL.
 
 ## STEP 3: Run Verification (if possible)
 

@@ -5,6 +5,122 @@
 
 ## Notes (Newest First)
 
+---CODEX---------------------
+note_id: CN-20260313-064925-CODEX
+timestamp_utc: 2026-03-13T06:49:25Z
+author: CODEX
+activity_type: CODE_WRITE
+work_scope: Correct Cursor skill safety guidance after live behavior tests
+files_touched: skills/cursor/SKILL.md, cnotes.md
+files_reviewed: skills/cursor/SKILL.md
+summary: Updated the Cursor driver to match the current CLI's observed behavior: `--force` is not a write barrier, and `--mode ask` / `--mode plan` are not safely read-only on this build.
+details: |
+  - Verified with disposable git repos that plain `agent -p --trust --workspace ...` wrote file changes even without `--force`.
+  - Verified that both `agent -p --trust --mode ask ...` and `agent -p --trust --mode plan ...` also wrote file changes on the current Cursor Agent build, despite `agent --help` describing those modes as read-only/planning.
+  - Rewrote the skill's flag table, execution-mode descriptions, gotchas, and examples to remove the false safety guarantee and steer analysis tasks toward isolated worktrees or disposable copies.
+  - Added a post-run git-status diff guard pattern for analysis tasks executed against a non-disposable checkout.
+validation: Disposable repo tests with `agent -p --trust`, `agent -p --trust --mode ask`, `agent -p --trust --mode plan`, and `--force` variants all appended lines to test files on 2026-03-13; `rg -n 'write barrier|reliably read-only|There is no `-o` output flag|Auto-approve commands/tool execution' skills/cursor/SKILL.md`
+risks_or_gaps: project-context.md is missing in this repo, so compliance checks remain partial; the skill now reflects observed local behavior, but future Cursor releases may restore stricter read-only semantics
+handoff_to: none
+next_actions: If other skills still assume Cursor `ask`/`plan` are safe dry runs, audit those consumers and update them to isolate writes or detect mutations
+-------------------------------
+
+---CODEX---------------------
+note_id: CN-20260313-064615-CODEX
+timestamp_utc: 2026-03-13T06:46:15Z
+author: CODEX
+activity_type: CODE_WRITE
+work_scope: Troubleshoot Cursor headless subagent invocation and patch stale driver guidance
+files_touched: skills/cursor/SKILL.md, cnotes.md
+files_reviewed: skills/cursor/SKILL.md, /Users/trevorbyrum/Project/arbytr/artifacts/reviews/review-synthesis-1.md
+summary: Verified that Cursor Agent works live in arbytr and narrowed the failure to stale local driver guidance that documented a non-existent `-o` flag for headless output capture.
+details: |
+  - Confirmed the installed Cursor CLI at `$HOME/.local/bin/agent` and verified authentication with `agent status`, which reported `Logged in as trevor.byrum@duke.edu`.
+  - Ran a live read-only headless call in `/Users/trevorbyrum/Project/arbytr` with `agent -p --trust --mode ask --workspace ... "Reply with OK only."` and received `OK`.
+  - Reproduced the wrapper bug by invoking the same command with `-o /tmp/cursor-invalid.md`; the CLI exited `1` with no stderr on the current build.
+  - Patched the local Cursor driver skill to remove the stale `-o` guidance and document stdout redirection / `--output-format json` as the correct capture pattern.
+validation: `agent status`; `gtimeout 120 "$AGENT" -p --trust --mode ask --workspace /Users/trevorbyrum/Project/arbytr "Reply with OK only."`; `"$AGENT" -p --trust --mode ask --workspace /Users/trevorbyrum/Project/arbytr -o /tmp/cursor-invalid.md "Reply with OK only."` exited 1
+risks_or_gaps: project-context.md is missing in this repo, so compliance checks remain partial; this patched the repo-local driver guidance, not any external Claude wrapper that may still be hardcoding `-o`
+handoff_to: none
+next_actions: If Cursor still fails from Claude, capture the exact spawned `agent` command and stderr from that wrapper path and compare it to the known-good invocation
+-------------------------------
+
+---CODEX---------------------
+note_id: CN-20260313-064142-CODEX
+timestamp_utc: 2026-03-13T06:41:42Z
+author: CODEX
+activity_type: CODE_WRITE
+work_scope: Fix stale Codex CLI wrapper guidance after reproducing Arbytr worker failures
+files_touched: skills/codex/SKILL.md, hooks/pre-commit-codex-lint.sh, skills/meta-deep-research-execute/references/protocol-detail.md, skill-suite-build-spec.md, cnotes.md
+files_reviewed: skills/codex/SKILL.md, hooks/pre-commit-codex-lint.sh, skills/meta-deep-research-execute/references/protocol-detail.md, skill-suite-build-spec.md, /Users/trevorbyrum/Project/arbytr/artifacts/reviews/review-synthesis-1.md
+summary: Patched the Codex driver and related references to use the current local CLI shape: command -v/Homebrew-first discovery, no shell-glob NVM lookup, current MCP server keys, and exec-specific flag guidance for codex-cli 0.104.0.
+details: |
+  - Replaced `ls ~/.nvm/versions/node/*/bin/codex` discovery with `command -v codex`, `/opt/homebrew/bin/codex`, then a filesystem NVM search that does not trip zsh's `nomatch` behavior.
+  - Updated MCP disable examples from stale keys (`homelab-gateway`, `ssh-tower`, `github`) to the current config keys (`homelab_gateway`, `ssh_manager`) and documented that overrides must match actual `~/.codex/config.toml` entries.
+  - Clarified approval guidance: top-level `codex --help` lists `-a`, but `codex exec --help` on 0.104.0 does not, and `codex exec -a never` fails.
+  - Applied the same discovery fix to the pre-commit Codex hook, the deep-research protocol reference, and the suite build spec so the stale pattern does not get regenerated.
+validation: `bash -n hooks/pre-commit-codex-lint.sh`; live smoke test succeeded with `codex exec --ephemeral --skip-git-repo-check -c 'mcp_servers.homelab_gateway.enabled=false' -c 'mcp_servers.ssh_manager.enabled=false' -s read-only -C /Users/trevorbyrum/Project/arbytr -o /tmp/codex-driver-smoke.md "Reply with OK only."`
+risks_or_gaps: project-context.md is still missing in this repo, so compliance checks remain partial; Codex still warns about a stale state DB migration mismatch in ~/.codex/state_5.sqlite, but that did not block exec
+handoff_to: none
+next_actions: If Claude still reports transport/config failures, capture the exact spawned Codex command and stderr from that worker path rather than relying on old synthesis artifacts
+-------------------------------
+
+---CLAUDE--------------------
+note_id: CN-20260313-060000-CLAUDE
+timestamp_utc: 2026-03-13T06:00:00Z
+author: CLAUDE
+activity_type: CODE_REVIEW
+work_scope: 007D deep research — LLM agent code efficiency and over-engineering control
+files_touched: artifacts/research/summary/007D-llm-agent-code-efficiency.md
+files_reviewed: none
+summary: Completed deep research protocol 007D on controlling LLM code over-engineering. 48 queries, ~280 sources scanned, 78 cited. 15 verified claims, 5 high confidence, 4 contested, 2 debunked. Key findings: explicit CLAUDE.md anti-over-engineering rules work; hooks beat instructions for enforcement; multi-agent review is highest-leverage quality pattern; spec-driven development is best generation-time intervention. Emergent topics: spec-driven development, AGENTS.md cross-tool standard, Rule of Least Power.
+details: Ran Tracks A-D (Opus reasoning, Sonnet connectors/WebSearch, Codex validation, Gemini web grounding). 45+ WebSearch queries, 5 WebFetch deep reads, 12 academic papers, 8 industry reports. Coverage expansion added spec-driven development as highest-impact emergent topic.
+validation: Cross-validated claims across Anthropic official docs, peer-reviewed studies, industry surveys, practitioner blogs
+risks_or_gaps: Source count ~280 below 1000+ target. Gemini/Codex CLI background workers pending completion. Model-specific comparisons lack controlled studies. Long-term maintainability (2+ years) unstudied.
+handoff_to: none
+next_actions: User should review contested findings (non-developer viability, over-simplification risks). Consider encoding top findings into CLAUDE.md rules and review pipeline updates.
+------------------------------
+
+---CODEX---------------------
+note_id: CN-20260313-032923-CODEX
+timestamp_utc: 2026-03-13T03:29:23Z
+author: CODEX
+activity_type: CODE_WRITE
+work_scope: Run Vibe on a real file-scoped task and apply the result
+files_touched: skills/browser-review/SKILL.md, cnotes.md
+files_reviewed: skills/browser-review/SKILL.md, skills/vibe/SKILL.md, references/cross-cutting-rules.md
+summary: Used the local Vibe driver to rewrite the browser-review skill description to fit the <=150 character budget without changing meaning.
+details: |
+  - Selected skills/browser-review/SKILL.md because it was clean in the worktree and over the description budget.
+  - Ran Vibe headlessly with -p, gtimeout, read_file-only scope, and a prompt limited to rewriting that file's YAML description line.
+  - Vibe returned: description: Visual QA via browser MCP tools (Playwright/browser-use). Use for UI review, visual bugs, or web interface inspection.
+  - Applied the returned line directly. Final description length: 118 characters.
+validation: Verified description length with a local script; placeholder/debug scan on touched files returned no matches
+risks_or_gaps: project-context.md is still missing, so compliance checks remain partial at the repo level
+handoff_to: none
+next_actions: Continue trimming remaining over-budget skill descriptions with the same file-scoped Vibe pattern if desired
+-------------------------------
+
+---CODEX---------------------
+note_id: CN-20260313-032746-CODEX
+timestamp_utc: 2026-03-13T03:27:46Z
+author: CODEX
+activity_type: CODE_WRITE
+work_scope: Run Vibe via the local driver skill and satisfy skill-suite prerequisites
+files_touched: coterie.md, cnotes.md
+files_reviewed: skills/vibe/SKILL.md, references/cross-cutting-rules.md
+summary: Created the missing coterie.md from the local template, then executed a narrow headless Vibe smoke test against the Vibe skill and cross-cutting rules files.
+details: |
+  - Resolved the Vibe binary dynamically per skills/vibe/SKILL.md and used /opt/homebrew/bin/gtimeout as required by the driver skill.
+  - Ran Vibe with -p, --output text, --max-turns 10, --workdir /Users/trevorbyrum/Project/claude, and read-only tools restricted to read_file and grep.
+  - Prompt scope: skills/vibe/SKILL.md and references/cross-cutting-rules.md only.
+  - Captured successful output at /tmp/vibe-smoke.md (289 chars).
+validation: Vibe smoke test exited 0 and returned 5 bullet points; output length check passed
+risks_or_gaps: Smoke test only; this did not validate Vibe file-writing flows or broader multi-work-unit orchestration
+handoff_to: none
+next_actions: Use the same /vibe driver pattern for a concrete file-scoped generation or review task when needed
+-------------------------------
+
 ---CLAUDE--------------------
 note_id: CN-20260312-203000-CLAUDE
 timestamp_utc: 2026-03-12T20:30:00Z

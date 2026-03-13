@@ -81,8 +81,11 @@ artifact DB per connector (written by the research-connector agent).
 **Hard limit: 4 concurrent Codex sessions.** Reserve 1 slot for Phase 2.5/3.
 
 ```bash
-CODEX=$(ls ~/.nvm/versions/node/*/bin/codex 2>/dev/null | sort -V | tail -1)
+CODEX=$(command -v codex 2>/dev/null)
 test -x "$CODEX" || CODEX="/opt/homebrew/bin/codex"
+if [ ! -x "$CODEX" ] && [ -d "$HOME/.nvm/versions/node" ]; then
+  CODEX=$(find "$HOME/.nvm/versions/node" -path '*/bin/codex' -type f 2>/dev/null | sort -V | tail -1)
+fi
 export PATH="$(dirname "$CODEX"):$PATH"
 GTIMEOUT="/opt/homebrew/bin/gtimeout"; test -x "$GTIMEOUT" || GTIMEOUT="/opt/homebrew/bin/timeout"
 test -x "$CODEX" || { echo "Codex unavailable — reassigning to Sonnet"; }

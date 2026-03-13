@@ -558,17 +558,16 @@ The cross-cutting rules are:
 - **Outputs**: Codex CLI output written to specified file
 - **Exit condition**: Output file written, or fallback noted
 - **Subagent**: No (this IS the external call)
-- **Availability check**: Resolve dynamically from NVM first, then Homebrew, then prepend the resolved bin dir to `PATH` so the wrapper can find `node`:
-  `CODEX=$(ls ~/.nvm/versions/node/*/bin/codex 2>/dev/null | sort -V | tail -1); test -x "$CODEX" || CODEX="/opt/homebrew/bin/codex"; test -x "$CODEX" && export PATH="$(dirname "$CODEX"):$PATH"; test -x "$CODEX"`
+- **Availability check**: Resolve dynamically via `command -v`, then Homebrew, then an NVM filesystem search without shell globs. Prepend the resolved bin dir to `PATH` only when needed for NVM-backed installs:
+  `CODEX=$(command -v codex 2>/dev/null); test -x "$CODEX" || CODEX="/opt/homebrew/bin/codex"; if [ ! -x "$CODEX" ] && [ -d "$HOME/.nvm/versions/node" ]; then CODEX=$(find "$HOME/.nvm/versions/node" -path '*/bin/codex' -type f 2>/dev/null | sort -V | tail -1); fi; test -x "$CODEX" && export PATH="$(dirname "$CODEX"):$PATH"; test -x "$CODEX"`
 - **Concurrency limit**: 5 simultaneous `codex exec` processes. The orchestrating agent must track active slots and queue excess work. Track via `/tmp/codex-slots.pid` — before launching, count active PIDs in the file (`ps -p` to verify still running, prune dead entries). If 5 active, queue and retry after the next slot frees. This is best-effort — the file is a coordination hint, not a hard lock.
 - **Task-type templates**:
 
   **Code review (read-only, safest):**
   ```bash
   RESULT=$($GTIMEOUT 120 "$CODEX" exec --ephemeral --skip-git-repo-check \
-    -c 'mcp_servers.homelab-gateway.enabled=false' \
-    -c 'mcp_servers.ssh-tower.enabled=false' \
-    -c 'mcp_servers.github.enabled=false' \
+    -c 'mcp_servers.homelab_gateway.enabled=false' \
+    -c 'mcp_servers.ssh_manager.enabled=false' \
     --sandbox read-only -C <project-root> \
     "PROMPT" 2>/dev/null)
   echo "$RESULT" > OUTPUT_FILE
@@ -577,9 +576,8 @@ The cross-cutting rules are:
   **Code review with high reasoning:**
   ```bash
   RESULT=$($GTIMEOUT 120 "$CODEX" exec --ephemeral --skip-git-repo-check \
-    -c 'mcp_servers.homelab-gateway.enabled=false' \
-    -c 'mcp_servers.ssh-tower.enabled=false' \
-    -c 'mcp_servers.github.enabled=false' \
+    -c 'mcp_servers.homelab_gateway.enabled=false' \
+    -c 'mcp_servers.ssh_manager.enabled=false' \
     --sandbox read-only -C <project-root> \
     -c model_reasoning_effort="high" \
     "PROMPT" 2>/dev/null)
@@ -589,9 +587,8 @@ The cross-cutting rules are:
   **Code generation / file writes (implementation work):**
   ```bash
   $GTIMEOUT 180 "$CODEX" exec --ephemeral --skip-git-repo-check \
-    -c 'mcp_servers.homelab-gateway.enabled=false' \
-    -c 'mcp_servers.ssh-tower.enabled=false' \
-    -c 'mcp_servers.github.enabled=false' \
+    -c 'mcp_servers.homelab_gateway.enabled=false' \
+    -c 'mcp_servers.ssh_manager.enabled=false' \
     --sandbox workspace-write -C /path/to/project \
     "PROMPT" 2>/dev/null
   ```
@@ -623,7 +620,7 @@ The cross-cutting rules are:
 
 - **Critical gotchas**:
   - ALWAYS wrap with `$GTIMEOUT` — hangs indefinitely if out of credits or the network stalls
-  - If Codex came from NVM, prepend `$(dirname "$CODEX")` to `PATH` before running it so `/usr/bin/env node` can resolve
+  - Prefer `command -v codex` first; if that misses, fall back to `/opt/homebrew/bin/codex`, then search NVM without shell globs
   - `-p` is `--profile`, NOT prompt. The prompt is a positional final argument.
   - Default sandbox is READ-ONLY in exec mode — use `--sandbox workspace-write` for file writes
   - Network is blocked by default in `workspace-write` sandbox
@@ -661,7 +658,7 @@ The cross-cutting rules are:
   4. All templates exist
   5. references/cross-cutting-rules.md exists
   6. `which gemini` — available or not
-  7. Resolve Codex dynamically (NVM path first, then `/opt/homebrew/bin/codex`) — available or not
+  7. Resolve Codex dynamically (`command -v`, then `/opt/homebrew/bin/codex`, then NVM filesystem search) — available or not
   8. Hook configuration in settings.json points to correct paths
   9. Gemini CLI responds to `gemini --version`
   10. Resolved Codex CLI responds to `"$CODEX" --version`

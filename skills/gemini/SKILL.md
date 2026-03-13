@@ -1,6 +1,7 @@
 ---
 name: gemini
 description: Driver skill for Gemini CLI syntax, flags, and gotchas. Load this before spawning any Gemini call. Use when other skills need Gemini or user says "use Gemini".
+disable-model-invocation: true
 ---
 
 # Gemini CLI Driver

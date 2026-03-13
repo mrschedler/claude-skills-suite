@@ -49,18 +49,39 @@ Include:
 
 Write the rubric out. Do NOT read any implementation files yet.
 
-## STEP 2: Stub Detection (automated gate)
+## STEP 2: Stub & Placeholder Detection (automated gate)
 
 Run this scan on all files created or modified by this work unit:
 ```bash
-# Stub/truncation detection — any match is an automatic MINOR_FIX or REJECT
-grep -rn '// \.\.\.' [modified-files] || true
-grep -rn 'TODO\|FIXME\|HACK\|XXX' [modified-files] || true
-grep -rn 'implement later\|not yet implemented\|placeholder' [modified-files] || true
-grep -rn 'throw new Error.*not implemented' [modified-files] || true
+# Comment markers
+grep -rn '// \.\.\.\|TODO\|FIXME\|HACK\|XXX\|PLACEHOLDER\|TEMP\|TEMPORARY' [modified-files] || true
+grep -rn '// removed\|// temporary\|// stub\|// mock\|// dummy\|// for testing\|// will be replaced' [modified-files] || true
+
+# Incomplete implementations
+grep -rn 'implement later\|not yet implemented\|placeholder\|not implemented' [modified-files] || true
+grep -rn 'throw new Error.*not implemented\|raise NotImplementedError\|todo!(\|unimplemented!(' [modified-files] || true
+
+# Empty bodies and swallowed errors
+grep -rn 'catch.*{[[:space:]]*}\|except.*pass\|{ }' [modified-files] || true
+
+# Placeholder values in non-test code
+grep -rn '"test"\|"example"\|"lorem"\|"foo"\|"bar"\|"asdf"\|"changeme"\|"password"\|"secret"' [modified-files] || true
+grep -rn "'axys-server'\|'test-session'\|'default-session'\|'placeholder'" [modified-files] || true
+
+# Debug artifacts in production code (exclude test files)
+grep -rn 'console\.log\|console\.debug\|debugger\|alert(' [modified-files] | grep -v '\.test\.\|\.spec\.\|__test' || true
 ```
-If any stub patterns are found, note them. Stubs in non-TODO code are
+If any stub/placeholder patterns are found, note them. Stubs in production code are
 automatic REJECT. TODOs in test helpers or non-critical paths are MINOR_FIX.
+Debug artifacts in production code are MINOR_FIX.
+
+## STEP 2b: Integration Wiring Check
+
+Verify the work unit's code is actually connected, not just written:
+- For each new export (function, class, constant): verify it is imported/called by at least one consumer (entry point, route, test, or other module). Unused exports = MINOR_FIX.
+- For each new config key or env var reference: verify it has a documented default in `.env.example` or config file. Missing config = MINOR_FIX.
+- For each resource acquired (DB connection, event listener, timer, child process): verify a corresponding cleanup exists in error/shutdown/unmount paths. Missing cleanup = MINOR_FIX or REJECT if on a critical path.
+- For hardcoded session IDs, connection refs, or placeholder strings where a dynamic value should be wired: automatic REJECT.
 
 ## STEP 3: Score Against Rubric
 

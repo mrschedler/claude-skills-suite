@@ -524,6 +524,12 @@ When all waves are done (the last wave's gate was approved):
    - New work discovered: N items [list them]
    ```
 
+4. **Logging pass (optional)**: If the meta-review from any wave flagged
+   log-review findings, suggest running `/log-gen` as a post-implementation
+   pass to add logging instrumentation to the newly generated code. LLM-
+   generated code almost never includes adequate logging — this catches it
+   before the first production incident.
+
 Note: each wave was already committed & pushed via `/github-sync` at its
 gate, and each wave already received a `/meta-review`. No additional
 push or review is needed at this stage unless the user requests one.

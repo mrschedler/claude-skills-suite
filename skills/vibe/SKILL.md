@@ -1,6 +1,7 @@
 ---
 name: vibe
 description: Driver skill for Mistral Vibe CLI (headless) syntax. Load this before spawning any Vibe call. Use when other skills need fast Mistral/Codestral generation or user says "use Vibe".
+disable-model-invocation: true
 ---
 
 # Mistral Vibe CLI Driver

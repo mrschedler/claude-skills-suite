@@ -94,8 +94,12 @@ HOOKEOF
 fi
 
 # --- Phase 3: Codex semantic review (only if deterministic checks pass) ---
-CODEX=$(ls ~/.nvm/versions/node/*/bin/codex 2>/dev/null | sort -V | tail -1)
+CODEX=$(command -v codex 2>/dev/null)
 test -x "$CODEX" || CODEX="/opt/homebrew/bin/codex"
+if [ ! -x "$CODEX" ] && [ -d "$HOME/.nvm/versions/node" ]; then
+  CODEX=$(find "$HOME/.nvm/versions/node" -path '*/bin/codex' -type f 2>/dev/null | sort -V | tail -1)
+fi
+test -x "$CODEX" && export PATH="$(dirname "$CODEX"):$PATH"
 GTIMEOUT="/opt/homebrew/bin/gtimeout"
 
 if [ -x "$CODEX" ] && [ -x "$GTIMEOUT" ]; then

@@ -1,6 +1,7 @@
 ---
 name: todo-features
 description: Updates todo.md and features.md to reflect current project state. Invoke explicitly with /todo-features — do NOT auto-trigger after other skills.
+disable-model-invocation: true
 argument-hint: [optional: "todo" to update only todo.md, "features" to update only features.md, omit to update both]
 ---
 

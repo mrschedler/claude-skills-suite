@@ -1,6 +1,6 @@
 ---
 name: browser-review
-description: Visual QA via browser MCP tools (Playwright/browser-use). Use when reviewing UI, checking for visual bugs, or inspecting a web interface after frontend changes.
+description: Visual QA via browser MCP tools (Playwright/browser-use). Use for UI review, visual bugs, or web interface inspection.
 ---
 
 # Browser Review

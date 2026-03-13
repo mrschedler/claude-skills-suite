@@ -1,6 +1,7 @@
 ---
 name: init-db
 description: "Initializes the artifact store for the current project. Creates artifacts/ directory and artifacts/project.db (SQLite+FTS5). Safe to re-run — idempotent."
+disable-model-invocation: true
 argument-hint: ""
 ---
 

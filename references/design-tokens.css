@@ -1,0 +1,179 @@
+/* Design System Tokens — Clean Modern Minimalist
+ *
+ * OKLCH color space for perceptual uniformity.
+ * System font stacks for speed; one accent font for brand.
+ * Generous whitespace, restrained palette, sharp hierarchy.
+ *
+ * Usage: NO raw color/spacing/radius values in component code.
+ *        Always reference these tokens via var(--token-name).
+ *        The audit script flags violations.
+ */
+
+:root {
+  /* ─── Color: Neutral Scale ─── */
+  --color-bg:            oklch(0.99 0.00 0);      /* near-white, not pure #fff */
+  --color-bg-subtle:     oklch(0.97 0.00 0);      /* section backgrounds */
+  --color-bg-muted:      oklch(0.94 0.005 250);   /* cards, wells */
+  --color-surface:       oklch(1.00 0.00 0);       /* elevated surfaces */
+  --color-border:        oklch(0.90 0.005 250);    /* subtle dividers */
+  --color-border-strong: oklch(0.80 0.01 250);     /* emphasis dividers */
+
+  /* ─── Color: Text Scale ─── */
+  --color-text:          oklch(0.15 0.01 250);     /* primary — near-black, not pure #000 */
+  --color-text-secondary:oklch(0.45 0.01 250);     /* secondary/muted */
+  --color-text-tertiary: oklch(0.60 0.005 250);    /* captions, timestamps */
+  --color-text-inverse:  oklch(0.98 0.00 0);       /* text on dark backgrounds */
+
+  /* ─── Color: Accent (restrained — ONE primary accent) ─── */
+  --color-accent:        oklch(0.55 0.15 250);     /* primary action — deep blue */
+  --color-accent-hover:  oklch(0.48 0.15 250);     /* hover state */
+  --color-accent-subtle: oklch(0.95 0.03 250);     /* accent background tint */
+  --color-accent-text:   oklch(0.45 0.15 250);     /* accent as text color */
+
+  /* ─── Color: Semantic ─── */
+  --color-success:       oklch(0.55 0.12 155);
+  --color-warning:       oklch(0.65 0.15 80);
+  --color-error:         oklch(0.55 0.18 25);
+  --color-info:          oklch(0.55 0.10 250);
+
+  /* ─── Typography: Font Stacks ─── */
+  --font-sans:           "Inter var", "SF Pro Display", -apple-system, BlinkMacSystemFont,
+                         "Segoe UI", Roboto, sans-serif;
+  --font-mono:           "JetBrains Mono", "SF Mono", "Fira Code", "Cascadia Code",
+                         ui-monospace, monospace;
+  --font-display:        "Instrument Sans", "Inter var", var(--font-sans);
+                         /* Accent display font — swap per project identity */
+
+  /* ─── Typography: Scale (major third — 1.25 ratio) ─── */
+  --text-xs:             0.75rem;    /* 12px — captions */
+  --text-sm:             0.875rem;   /* 14px — secondary */
+  --text-base:           1rem;       /* 16px — body */
+  --text-lg:             1.125rem;   /* 18px — lead */
+  --text-xl:             1.25rem;    /* 20px — subhead */
+  --text-2xl:            1.5rem;     /* 24px — section head */
+  --text-3xl:            1.875rem;   /* 30px — page head */
+  --text-4xl:            2.25rem;    /* 36px — hero */
+  --text-5xl:            3rem;       /* 48px — display */
+
+  /* ─── Typography: Weight ─── */
+  --font-normal:         400;
+  --font-medium:         500;
+  --font-semibold:       600;
+  --font-bold:           700;
+
+  /* ─── Typography: Line Height ─── */
+  --leading-tight:       1.2;        /* headings */
+  --leading-normal:      1.5;        /* body text */
+  --leading-relaxed:     1.625;      /* long-form reading */
+
+  /* ─── Typography: Letter Spacing ─── */
+  --tracking-tight:      -0.02em;    /* headings */
+  --tracking-normal:     0em;        /* body */
+  --tracking-wide:       0.05em;     /* all-caps labels */
+
+  /* ─── Spacing: 4px base grid ─── */
+  --space-0:             0;
+  --space-1:             0.25rem;    /* 4px */
+  --space-2:             0.5rem;     /* 8px */
+  --space-3:             0.75rem;    /* 12px */
+  --space-4:             1rem;       /* 16px */
+  --space-5:             1.25rem;    /* 20px */
+  --space-6:             1.5rem;     /* 24px */
+  --space-8:             2rem;       /* 32px */
+  --space-10:            2.5rem;     /* 40px */
+  --space-12:            3rem;       /* 48px */
+  --space-16:            4rem;       /* 64px */
+  --space-20:            5rem;       /* 80px */
+  --space-24:            6rem;       /* 96px */
+  --space-32:            8rem;       /* 128px */
+
+  /* ─── Layout ─── */
+  --max-w-prose:         65ch;       /* optimal reading width */
+  --max-w-content:       72rem;      /* 1152px — main content */
+  --max-w-wide:          90rem;      /* 1440px — full-width */
+
+  /* ─── Radius ─── */
+  --radius-none:         0;
+  --radius-sm:           0.25rem;    /* 4px — inputs, badges */
+  --radius-md:           0.5rem;     /* 8px — cards, buttons */
+  --radius-lg:           0.75rem;    /* 12px — modals, panels */
+  --radius-xl:           1rem;       /* 16px — large containers */
+  --radius-full:         9999px;     /* pills, avatars */
+
+  /* ─── Shadows (subtle, layered) ─── */
+  --shadow-sm:           0 1px 2px oklch(0.15 0.00 0 / 0.05);
+  --shadow-md:           0 2px 4px oklch(0.15 0.00 0 / 0.05),
+                         0 1px 2px oklch(0.15 0.00 0 / 0.04);
+  --shadow-lg:           0 4px 12px oklch(0.15 0.00 0 / 0.06),
+                         0 2px 4px oklch(0.15 0.00 0 / 0.04);
+  --shadow-xl:           0 8px 24px oklch(0.15 0.00 0 / 0.08),
+                         0 4px 8px oklch(0.15 0.00 0 / 0.04);
+
+  /* ─── Motion ─── */
+  --duration-fast:       100ms;
+  --duration-normal:     200ms;
+  --duration-slow:       300ms;
+  --duration-slower:     500ms;
+  --ease-default:        cubic-bezier(0.25, 0.1, 0.25, 1);
+  --ease-in-out:         cubic-bezier(0.42, 0, 0.58, 1);
+  --ease-spring:         cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ─── Z-Index Scale ─── */
+  --z-base:              0;
+  --z-above:             10;
+  --z-dropdown:          100;
+  --z-sticky:            200;
+  --z-overlay:           300;
+  --z-modal:             400;
+  --z-toast:             500;
+}
+
+/* ─── Dark Mode ─── */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg:            oklch(0.13 0.01 250);
+    --color-bg-subtle:     oklch(0.16 0.01 250);
+    --color-bg-muted:      oklch(0.20 0.01 250);
+    --color-surface:       oklch(0.18 0.01 250);
+    --color-border:        oklch(0.25 0.01 250);
+    --color-border-strong: oklch(0.35 0.01 250);
+
+    --color-text:          oklch(0.93 0.005 250);
+    --color-text-secondary:oklch(0.70 0.005 250);
+    --color-text-tertiary: oklch(0.55 0.005 250);
+    --color-text-inverse:  oklch(0.15 0.01 250);
+
+    --color-accent:        oklch(0.65 0.15 250);
+    --color-accent-hover:  oklch(0.72 0.15 250);
+    --color-accent-subtle: oklch(0.22 0.04 250);
+    --color-accent-text:   oklch(0.70 0.12 250);
+
+    --shadow-sm:           0 1px 2px oklch(0.00 0.00 0 / 0.2);
+    --shadow-md:           0 2px 4px oklch(0.00 0.00 0 / 0.2),
+                           0 1px 2px oklch(0.00 0.00 0 / 0.15);
+    --shadow-lg:           0 4px 12px oklch(0.00 0.00 0 / 0.25),
+                           0 2px 4px oklch(0.00 0.00 0 / 0.15);
+    --shadow-xl:           0 8px 24px oklch(0.00 0.00 0 / 0.3),
+                           0 4px 8px oklch(0.00 0.00 0 / 0.15);
+  }
+}
+
+/* ─── Reduced Motion ─── */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast:       0ms;
+    --duration-normal:     0ms;
+    --duration-slow:       0ms;
+    --duration-slower:     0ms;
+  }
+}
+
+/* ─── High Contrast ─── */
+@media (prefers-contrast: more) {
+  :root {
+    --color-text:          oklch(0.00 0.00 0);
+    --color-text-secondary:oklch(0.25 0.01 250);
+    --color-border:        oklch(0.70 0.01 250);
+    --color-border-strong: oklch(0.50 0.01 250);
+  }
+}

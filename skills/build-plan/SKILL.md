@@ -92,6 +92,18 @@ execution.
    clear acceptance criteria, it's too big. Split it. If it touches >5
    files, it's too broad. Narrow it.
 
+   **No-placeholders rule (MANDATORY)**: Every work unit must be fully
+   implementable as specified. Reject any work unit that:
+   - Uses "wire up later", "placeholder for now", "TBD", or "to be determined"
+   - Defers integration to a future unit without naming that unit by ID
+   - Describes an output without specifying who consumes it
+   - Creates exports, config keys, or env vars without stating where they're read
+   - Acquires resources (DB, PTY, WebSocket) without specifying cleanup
+
+   If a unit can't be fully wired in isolation, split it differently or
+   merge it with the consuming unit. The goal: every unit's output is
+   connected to a consumer by the end of the same wave.
+
    Tag work units as parallelizable when they have no mutual file
    dependencies. This enables multi-agent execution via meta-execute —
    workers run in parallel on isolated worktrees.
@@ -148,14 +160,25 @@ execution.
     [Anything unresolved that needs user input before work begins]
     ```
 
-11. **Present for approval.** Show the user the plan summary (phases,
+11. **Integration wiring audit.** Before presenting the plan, verify:
+    - Every work unit that creates an export names the consuming unit(s) by ID.
+    - Every env var or config key introduced by a unit is consumed within the same
+      wave or explicitly carried forward as a dependency.
+    - Every resource opened by a unit (DB, PTY, event bus, WebSocket) has cleanup
+      specified in that unit's acceptance criteria.
+    - No work unit uses "placeholder", "TBD", "wire later", or deferred language.
+    If any violations are found, fix them before presenting. This prevents the
+    "code exists but isn't connected" failure mode that plagues multi-agent builds.
+
+12. **Present for approval.** Show the user the plan summary (phases,
     milestone count, total work units, critical path length, top risks). Ask
     if priorities are correct, if anything is missing, and if effort estimates
     feel right. The user knows their domain better than any model — their
     calibration matters.
 
-12. **Revise if needed.** If the user requests changes, update the plan and
-    re-present. Do not write the final file until approved.
+13. **Revise if needed.** If the user requests changes, update the plan and
+    re-present. Re-run the integration wiring audit (step 11) after revisions.
+    Do not write the final file until approved.
 
 ## Exit condition
 
