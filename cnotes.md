@@ -6,6 +6,27 @@
 ## Notes (Newest First)
 
 ---CODEX---------------------
+note_id: CN-20260313-065430-CODEX
+timestamp_utc: 2026-03-13T06:54:30Z
+author: CODEX
+activity_type: CODE_WRITE
+work_scope: Revalidate Vibe and Copilot driver skills against live CLIs and correct stale guidance
+files_touched: skills/vibe/SKILL.md, skills/copilot/SKILL.md, cnotes.md
+files_reviewed: skills/vibe/SKILL.md, skills/copilot/SKILL.md, ~/.vibe/config.toml
+summary: Patched the Vibe and Copilot driver skills to match live CLI behavior on this machine, including Vibe plan/json semantics and Copilot path, headless, model, and JSON extraction guidance.
+details: |
+  - Verified Vibe 2.4.2 at `$HOME/.local/bin/vibe`, confirmed `--enabled-tools read_file grep` prevented writes, and confirmed `--agent plan` works in one-shot headless mode instead of requiring a separate plan file.
+  - Added Vibe JSON guidance after confirming `--output json` writes a single JSON array and that the final assistant response can be extracted with `jq 'map(select(.role == "assistant")) | last.content'`.
+  - Verified Copilot CLI 1.0.4 at `$HOME/.local/bin/copilot`, corrected the stale availability check that hardcoded `/opt/homebrew/bin/copilot`, and softened the over-strong claim that `--allow-all-tools` / `--no-ask-user` are mandatory for every headless prompt.
+  - Confirmed Copilot JSON mode emits mixed-event JSONL where the last line is a `result` event, not the final assistant message, and updated extraction guidance to filter `assistant.message` records.
+  - Removed the stale fixed-default-model implication from the Copilot skill after observing an unpinned simple prompt auto-route to `claude-haiku-4.5` on 2026-03-13.
+validation: `vibe --version`; `copilot version`; disposable write tests for Vibe and Copilot; `jq -r 'map(select(.role == "assistant")) | last.content // empty' /tmp/vibe-json.out`; `jq -r 'select(.type=="assistant.message") | .data.content // empty' /tmp/copilot-json.out | tail -1`
+risks_or_gaps: project-context.md is missing in this repo, so compliance checks remain partial; Copilot tests consumed premium requests; future CLI releases may change output/event shapes again
+handoff_to: none
+next_actions: Audit consuming skills that invoke `/copilot` or `/vibe` if they depend on the removed assumptions about Copilot defaults or Vibe `--agent plan`
+-------------------------------
+
+---CODEX---------------------
 note_id: CN-20260313-064925-CODEX
 timestamp_utc: 2026-03-13T06:49:25Z
 author: CODEX

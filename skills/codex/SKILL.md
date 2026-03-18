@@ -25,8 +25,10 @@ test -x "$CODEX" || CODEX="/opt/homebrew/bin/codex"
 if [ ! -x "$CODEX" ] && [ -d "$HOME/.nvm/versions/node" ]; then
   CODEX=$(find "$HOME/.nvm/versions/node" -path '*/bin/codex' -type f 2>/dev/null | sort -V | tail -1)
 fi
-test -x "$CODEX" || { echo "Codex unavailable — skipping"; }
-export PATH="$(dirname "$CODEX"):$PATH"
+test -x "$CODEX" || { echo "Codex unavailable — skipping"; CODEX=""; }
+if [ -n "$CODEX" ]; then
+  export PATH="$(dirname "$CODEX"):$PATH"
+fi
 ```
 
 Use `"$CODEX"` in every invocation. Do not use bare `codex`. The PATH export
@@ -184,7 +186,11 @@ $GTIMEOUT 120 "$CODEX" exec --ephemeral --skip-git-repo-check -o OUTPUT_FILE "Su
 
 ### Long Prompt via stdin
 
-For prompts too long for a shell argument, pipe from a file using `-`:
+For prompts too long for a shell argument, or whenever the prompt already
+lives in a file, pipe from that file using `-`. Do **not** format prompt files
+as `"$(cat /tmp/prompt.md)"` for Codex. On this machine `ARG_MAX` is
+`1048576`, so large review prompts can fail with `argument list too long`
+before Codex even starts.
 
 ```bash
 $GTIMEOUT 120 "$CODEX" exec --ephemeral --skip-git-repo-check - < /path/to/prompt.md 2>/dev/null
@@ -243,7 +249,13 @@ $GTIMEOUT 120 "$CODEX" exec --ephemeral --skip-git-repo-check -C /path/to/projec
 
 11. **`-C` is valid** — short form for `--cd <DIR>`. Both work.
 
-12. **Validate output by character count, not line count** — Codex sometimes
+12. **Prompt files go over stdin, not `$(cat file)`** — if a prompt already
+    lives in `/tmp/prompt.md`, invoke Codex as `... - < /tmp/prompt.md`.
+    Command substitution turns the whole file into one shell argument, which
+    is fragile for multiline prompts and fails completely once the shell hits
+    `ARG_MAX`.
+
+13. **Validate output by character count, not line count** — Codex sometimes
     produces few lines with very long content. Check `wc -c` (expect ≥ 100
     chars for a real response) rather than `wc -l`.
 
@@ -261,7 +273,6 @@ $GTIMEOUT 120 "$CODEX" exec --ephemeral --skip-git-repo-check -C /path/to/projec
 | `-V` | `--version` | Print version |
 | — | `--full-auto` | Convenience shortcut for automatic workspace-write runs |
 | — | `--dangerously-bypass-approvals-and-sandbox` | Disable sandbox and approvals |
-| — | `--search` | Enable native web search for the agent |
 
 ## Sandbox Mode Reference
 
@@ -296,7 +307,7 @@ Skill (counter-review): Needs Codex to review project for completeness issues.
 ```
 Skill (meta-review): Firing Codex alongside Gemini and Claude in parallel.
 --> $GTIMEOUT 120 "$CODEX" exec --ephemeral --skip-git-repo-check --sandbox read-only -C /path/to/project \
-      "$(cat /tmp/review-prompt.md)" 2>/dev/null > /tmp/codex-review-output.md &
+      -o /tmp/codex-review-output.md - < /tmp/review-prompt.md 2>/dev/null &
     echo $! >> /tmp/codex-slots.pid
     CODEX_PID=$!
     # ... launch other reviews ...

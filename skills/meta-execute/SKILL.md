@@ -328,7 +328,8 @@ If the primary generators are unavailable:
 
 Codex fallback invocation — load `/codex` for invocation syntax. Key params:
 `--sandbox workspace-write`, `--ephemeral`, `--cd <project-root>`, 180s timeout.
-Prompt: `$(cat /tmp/wu-{ID}-prompt.md)`.
+Prompt source: `/tmp/wu-{ID}-prompt.md` via stdin
+(`- < /tmp/wu-{ID}-prompt.md`).
 
 Sonnet subagent fallback:
 1. Each subagent receives the same prompt built from `agents/worker.md`.
@@ -368,12 +369,15 @@ cat > /tmp/wu-{ID}-review-prompt.md << 'REVIEW_EOF'
 ... filled reviewer.md template ...
 REVIEW_EOF
 ```
+For Codex specifically, feed the prompt file via stdin. Do not inline it as
+`$(cat /tmp/...md)`.
 
 **1. Codex (review+fix)** — the only reviewer that writes files.
 Load `/codex` for invocation syntax. Key params: `--sandbox workspace-write`,
 `--ephemeral`, `--cd <worktree-or-branch-path>`, 180s timeout.
-Prompt: `$(cat /tmp/wu-{ID}-codex-review-prompt.md)`. Output to
-`/tmp/wu-{ID}-review-codex.md`.
+Prompt source: `/tmp/wu-{ID}-codex-review-prompt.md` via stdin
+(`- < /tmp/wu-{ID}-codex-review-prompt.md`). Output to
+`/tmp/wu-{ID}-review-codex.md` via `-o`.
 Uses the specialized prompt from `agents/codex-reviewer.md` which includes
 fix-application instructions.
 

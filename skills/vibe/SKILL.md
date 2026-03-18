@@ -144,9 +144,10 @@ $GTIMEOUT 120 "$VIBE" \
   2>/dev/null > /tmp/vibe-analysis.md
 ```
 
-Do **not** use `--agent plan` for one-shot headless analysis. On Vibe 2.4.2 it
-enters the CLI's plan-mode workflow, requires a plan file, and can burn turns
-without ever producing a final answer.
+`--agent plan` works in headless mode on Vibe 2.4.2, but it changes the
+response style toward planning-oriented output. Use it only when you want that
+planning stance; for concise one-shot analysis, the default agent is usually
+simpler.
 
 ### Tool-Restricted Run
 
@@ -161,6 +162,22 @@ $GTIMEOUT 120 "$VIBE" \
   --enabled-tools "grep" \
   --workdir /path/to/project \
   2>/dev/null > /tmp/vibe-todos.md
+```
+
+### JSON Output
+
+`--output json` writes a single JSON array of chat messages, not JSONL. The
+final assistant response is usually the last object with `"role": "assistant"`.
+
+```bash
+$GTIMEOUT 120 "$VIBE" \
+  -p "Reply with OK only." \
+  --output json \
+  --max-turns 3 \
+  --workdir /path/to/project \
+  2>/dev/null > /tmp/vibe-out.json
+
+jq -r 'map(select(.role == "assistant")) | last.content // empty' /tmp/vibe-out.json
 ```
 
 ## Model Selection
@@ -240,11 +257,15 @@ fi
 10. **Broad repo-analysis prompts can hit turn limits** — keep analysis prompts
     narrow, name the target files/directories, and prefer `--enabled-tools`
     for focused read-only runs.
-11. **`--agent plan` is not a lightweight analysis profile** — it activates
-    Vibe plan mode and is a poor fit for one-shot CLI calls.
+11. **`--agent plan` changes response style rather than failing headless** —
+    on Vibe 2.4.2 it returned planning-oriented output in one-shot CLI calls.
+    Use it only when you explicitly want that behavior.
 12. **Code-generation prompts must name the exact coding scope** — specify the
     work unit, target files, expected output format, and what not to touch.
     Do not ask Vibe to discover the scope itself.
+13. **JSON mode is a single array, not JSONL** — `--output json` writes one
+    JSON document containing all messages. Use `jq` over the full array, not
+    `tail -1`.
 
 ## Concurrency Limit (MANDATORY)
 

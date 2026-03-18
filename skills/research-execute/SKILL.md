@@ -170,9 +170,11 @@ note the shortfall in the synthesis and flag thin connectors.
 
    **Counter 3 — Codex CLI:** Load `/codex` for invocation syntax.
    Key params: `--sandbox read-only`, `--ephemeral`, 180s timeout.
-   Prompt: `"Review this research synthesis for technical accuracy. Flag any
-   claims about libraries, frameworks, or APIs that are outdated or incorrect.
-   $(cat artifacts/research/summary/{NNN}-{topic-slug}.md)"`.
+   Prompt: write a temp prompt file that contains the instructions below plus
+   `artifacts/research/summary/{NNN}-{topic-slug}.md`, then pass it to Codex
+   via stdin (`- < /tmp/counter-codex-prompt.md`):
+   `"Review this research synthesis for technical accuracy. Flag any claims
+   about libraries, frameworks, or APIs that are outdated or incorrect."`
    Output to `/tmp/counter-codex.md`. Then store in DB:
    ```bash
    source artifacts/db.sh && db_upsert 'research-execute' 'counter' '{NNN}/codex' "$(cat /tmp/counter-codex.md)" && rm /tmp/counter-codex.md

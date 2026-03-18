@@ -65,7 +65,9 @@ echo $! >> /tmp/copilot-slots.pid
 Before any invocation, verify the CLI is installed:
 
 ```bash
-COPILOT="/opt/homebrew/bin/copilot"
+COPILOT=$(command -v copilot 2>/dev/null)
+test -x "$COPILOT" || COPILOT="$HOME/.local/bin/copilot"
+test -x "$COPILOT" || COPILOT="/opt/homebrew/bin/copilot"
 test -x "$COPILOT" || { echo "Copilot CLI not installed"; exit 1; }
 ```
 
@@ -92,13 +94,13 @@ Every template below uses `$GTIMEOUT`. Do not use bare `timeout`.
 Copilot CLI enters headless mode via `-p/--prompt`. The process exits after
 the task completes — no interactive session is opened.
 
-**Minimum required flags for every headless call:**
+**Baseline flags for unattended headless calls:**
 
 | Flag | Purpose |
 |---|---|
 | `-p "PROMPT"` | The prompt text — this is the headless trigger |
-| `--allow-all-tools` | Required: allows tools to run without confirmation |
-| `--no-ask-user` | Disables the `ask_user` tool so execution cannot pause |
+| `--allow-all-tools` | Recommended when the task may need tools; avoids permission prompts |
+| `--no-ask-user` | Recommended when execution must not pause on a question |
 | `--no-color` | Strips ANSI escape codes from the response body |
 | `-s` / `--silent` | Outputs only the agent response; suppresses stats/metadata |
 
@@ -110,6 +112,10 @@ $GTIMEOUT 120 "$COPILOT" \
   -s \
   -p "PROMPT" 2>/dev/null
 ```
+
+Simple text-only prompts can complete without `--allow-all-tools` or
+`--no-ask-user`, but that is brittle. If the agent decides to use a tool or ask
+a question, the run can stall or fail. Use both flags for unattended tasks.
 
 **Never use `--yolo` in automated contexts** — it also enables
 `--allow-all-paths` and `--allow-all-urls`, which are too permissive for
@@ -139,8 +145,9 @@ echo "$RESULT" > OUTPUT_FILE
 
 ### Code Generation / File Writes
 
-When Copilot needs to write files, add the target directory and use a longer
-timeout to account for multi-step work.
+When Copilot needs to write files outside the current working directory, add
+the target directory explicitly and use a longer timeout to account for
+multi-step work.
 
 ```bash
 $GTIMEOUT 180 "$COPILOT" \
@@ -186,12 +193,14 @@ $GTIMEOUT 120 "$COPILOT" \
   --output-format json \
   -p "PROMPT" 2>/dev/null > /tmp/copilot-out.jsonl
 
-# Extract final assistant message content (last non-empty line)
-tail -1 /tmp/copilot-out.jsonl | jq -r '.content // .message // .' > OUTPUT_FILE
+# Extract final assistant message content
+jq -r 'select(.type=="assistant.message") | .data.content // empty' \
+  /tmp/copilot-out.jsonl | tail -1 > OUTPUT_FILE
 ```
 
 Validate the JSONL schema on first use — field names may vary by CLI version.
-Use `jq -r '.' /tmp/copilot-out.jsonl | head -5` to inspect the structure.
+On 1.0.4, the last line is a `result` event, not the final assistant message,
+so `tail -1` alone is not a safe extractor.
 
 ### With Specific Model
 
@@ -210,14 +219,16 @@ $GTIMEOUT 120 "$COPILOT" \
 
 | Model | Best For |
 |---|---|
-| `claude-sonnet-4.6` | Default; balanced quality and speed |
+| `claude-sonnet-4.6` | Balanced quality and speed when you want to pin a Claude model |
 | `claude-opus-4.6` | Highest-quality reasoning, slower |
 | `claude-haiku-4.5` | Fast, cheap, simple tasks |
 | `gpt-5.4` | Codex-class tasks, structured output |
 | `gpt-5.1-codex` | Code generation and review |
 | `gemini-3-pro-preview` | Large context, web research |
 
-Default: `claude-sonnet-4.5`. Do not specify `--model` unless overriding.
+Do not assume a fixed default model. On 2026-03-13, a simple unpinned prompt
+auto-routed to `claude-haiku-4.5` on this machine. Pin `--model` when the
+output profile must be deterministic.
 
 ### High Reasoning
 
@@ -292,18 +303,20 @@ fi
    is correct. This is the inverse of the Codex gotcha — stay alert when
    switching between the two CLIs.
 
-2. **`--allow-all-tools` is required** for non-interactive use — without it,
-   Copilot stalls waiting for tool permission confirmations that never arrive.
+2. **`--allow-all-tools` is the safe default for unattended tasks** — simple
+   text-only prompts can succeed without it, but any prompt that triggers tools
+   can stall on a permission request.
 
-3. **`--no-ask-user` is required** — the `ask_user` tool can pause execution
-   indefinitely waiting for a response in headless mode.
+3. **`--no-ask-user` prevents headless pauses** — simple prompts can finish
+   without it, but the `ask_user` tool can block unattended runs indefinitely.
 
 4. **`--autopilot` without `--max-autopilot-continues` runs indefinitely** —
    always cap it (3–5 recommended). The only fallback is `$GTIMEOUT`.
 
-5. **JSON output is JSONL** — `--output-format json` produces one JSON object
-   per line, not a single JSON document. Never pass directly to `jq` without
-   per-line processing or `jq -s`.
+5. **JSON output is JSONL with mixed event types** — `--output-format json`
+   produces one JSON object per line, including reasoning deltas, assistant
+   messages, and a final `result` event. Filter for `assistant.message` when
+   extracting the answer.
 
 6. **No working-directory flag** — unlike Codex (`-C`), Copilot has no `-C`
    or `--cd`. Use `--add-dir /path` for file access permissions and reference
@@ -330,6 +343,8 @@ fi
 
 12. **Exit codes**: `0` = success; non-zero = error. During debugging, remove
     `2>/dev/null` temporarily to see the actual error message on stderr.
+13. **Do not assume a fixed default model** — the CLI can auto-route per task.
+    Pin `--model` when model choice matters.
 
 ## Short Flag Reference
 
