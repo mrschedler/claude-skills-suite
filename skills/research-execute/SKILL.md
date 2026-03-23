@@ -1,29 +1,31 @@
 ---
 name: research-execute
-description: "Executes the research plan by fanning out parallel subagents across connectors, compiling synthesis, and running a triple-counter. Triggers on run the research, execute research, do the research."
+description: "Plans and executes research: extracts topics from project-context.md, maps to connectors, fans out subagents, synthesizes, triple-counters. Triggers on research, run the research, plan the research."
 disable-model-invocation: true
 ---
 
 # research-execute
 
-Execute the approved research plan. Fan out Sonnet subagents across connectors,
-collect findings, synthesize, then counter the synthesis with three different
-model families to catch blind spots.
+Full research pipeline: plan topics, map to connectors, fan out subagents,
+synthesize findings, and counter with three model families. Subsumes the
+former `research-plan` skill — planning is now Phase 0 of execution.
 
 ## When to use
 
-- The user approved the research plan from `research-plan`.
-- User says "run the research", "execute research", "do the research."
-- A `research_plan.md` exists and has not been executed yet.
+- User says "research", "run the research", "plan the research", "execute research."
+- After `project-context.md` is written and there are open questions.
 - Dispatched by `/meta-research` via Opus subagent with a `research-prompt.md`.
+- A plan already exists in the artifact DB — skip Phase 0 and execute.
 
 ## Inputs
 
 | Input | Source | Required |
 |---|---|---|
-| Artifact DB: `research-plan` / `plan` / `{NNN}` | research-plan skill output | Yes |
-| Artifact DB: `research-execute` / `prompt` / `{NNN}` | meta-research dispatch (if Opus subagent) | No |
 | project-context.md | Project root | Yes |
+| Artifact DB: `research-plan` / `plan` / `{NNN}` | Prior plan (skip Phase 0 if exists) | No |
+| Artifact DB: `research-execute` / `prompt` / `{NNN}` | meta-research dispatch (if Opus subagent) | No |
+| Existing code | `src/` directory | No |
+| Prior research | Artifact DB (`research-plan` / `plan`) | No |
 
 ## Source Counting Target
 
@@ -36,17 +38,66 @@ note the shortfall in the synthesis and flag thin connectors.
 
 ## Instructions
 
-1. **Read the plan.** Read the research plan from the artifact DB:
-   `source artifacts/db.sh && PLAN=$(db_read 'research-plan' 'plan' '{NNN}')`.
-   If NNN is not yet determined, use `db_read 'research-plan' 'plan'` (fetches
-   most recent). Parse the plan content to extract topics, connector allocation,
-   and NNN.
+### Phase 0: Plan (skip if plan already exists)
 
-   If dispatched by `/meta-research`, read the research prompt from the DB:
-   `db_read 'research-execute' 'prompt' '{NNN}'`. This provides additional
-   context and scope instructions.
+Check for an existing plan:
+```bash
+source artifacts/db.sh
+PLAN=$(db_read 'research-plan' 'plan')
+```
 
-3. **Dispatch subagents.** Allocate up to 10 Sonnet subagents, one per
+If a plan exists and the user hasn't asked to re-plan, skip to Phase 1.
+If `--plan-only` was specified or user said "plan the research", stop after
+this phase and present the plan for approval.
+
+**If no plan exists, build one:**
+
+1. Read `project-context.md` — the primary source. Scan `src/` for code
+   patterns that inform research needs. Check artifact DB for prior research.
+
+2. **Extract research topics** from:
+   - Open Questions in project-context.md
+   - Key Decisions where alternatives weren't evaluated
+   - Tech Stack choices lacking evidence
+   - Architecture gaps you notice
+
+3. **Categorize each topic** into lanes:
+
+   | Lane | Connectors |
+   |---|---|
+   | Academic | Consensus, Scholar Gateway, Synapse.org, PubMed, Clinical Trials |
+   | Code | Context7, GitHub, Microsoft Learn |
+   | Both | Hugging Face, Web Search |
+
+4. **Map topics to connectors** with query intent for each.
+
+5. **Prioritize**: P0 (blocks progress), P1 (affects quality), P2 (nice to have).
+
+6. **Self-counter**: Are topics too broad? Already answered? Missing obvious needs?
+
+7. **Determine NNN and store**:
+   ```bash
+   source artifacts/db.sh
+   NNN=$(printf '%03d' $(( $(sqlite3 artifacts/project.db "SELECT COUNT(*) FROM artifacts WHERE skill='research-plan' AND phase='plan';" 2>/dev/null || echo 0) + 1 )))
+   db_upsert 'research-plan' 'plan' "$NNN" "$PLAN_CONTENT"
+   ```
+
+8. **Present for approval.** Show the plan. Wait for user to approve scope.
+   If `--plan-only`, stop here.
+
+### Phase 1: Read the Plan
+
+Read the research plan from the artifact DB:
+`source artifacts/db.sh && PLAN=$(db_read 'research-plan' 'plan' '{NNN}')`.
+If NNN is not yet determined, use `db_read 'research-plan' 'plan'` (fetches
+most recent). Parse the plan content to extract topics, connector allocation,
+and NNN.
+
+If dispatched by `/meta-research`, read the research prompt from the DB:
+`db_read 'research-execute' 'prompt' '{NNN}'`. This provides additional
+context and scope instructions.
+
+### Phase 2: Dispatch subagents. Allocate up to 10 Sonnet subagents, one per
    connector. The connector roster:
 
    | Connector | Tool / Method | Lane |
@@ -159,7 +210,8 @@ note the shortfall in the synthesis and flag thin connectors.
    ```
 
    **Counter 2 — Gemini CLI:** Load `/gemini` for invocation syntax.
-   Key params: `--agent generalist`, 120s timeout.
+   Use the `/gemini` Research / Analysis template with a 120s timeout. Do not
+   force `@generalist_agent`.
    Prompt: `"Read this research synthesis and challenge it. Identify weak
    evidence, missing angles, and overclaimed conclusions. Be adversarial.
    $(cat artifacts/research/summary/{NNN}-{topic-slug}.md)"`.
@@ -206,6 +258,14 @@ note the shortfall in the synthesis and flag thin connectors.
 11. **Present results.** Give the user the executive summary from the
     synthesis, the **aggregate source counts**, and ask if they want to dive
     into any specific topic. Flag the gaps and low-confidence areas.
+
+12. **Homelab Tools memory sync (MANDATORY).** Store the research summary
+    in Qdrant so home Claude can reference findings across projects. Per
+    cross-cutting rule 7:
+    - Use `mcp__claude_ai_Homelab_Tools__memory_call` with `tool: 'store_memory'`.
+    - Content: executive summary + source tally + key findings (condensed).
+    - Tags: `research`, `{NNN}`, `{project-name}`.
+    - Search first to avoid duplicating a recent entry for the same NNN.
 
 ## Exit condition
 

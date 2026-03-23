@@ -1,14 +1,28 @@
 #!/usr/bin/env bash
-# Stop hook — two-gate pattern
-# Gate 1 (first stop): block — check docs + over-engineering
-# Gate 2 (stop_hook_active=true): allow through
+# Stop hook — three-gate pattern
+# Gate 0: skip if no files changed (no code work done)
+# Gate 1 (first stop per project per day): block once — check docs + over-engineering
+# Gate 2 (already fired): allow through via lock file
 
 INPUT=$(cat)
-STOP_HOOK_ACTIVE=$(echo "$INPUT" | jq -r '.stop_hook_active // false')
 
-if [ "$STOP_HOOK_ACTIVE" = "true" ]; then
+# Gate 2: already fired for this project today — allow through
+DIR_HASH=$(pwd | shasum -a 256 | cut -c1-8)
+LOCK="/tmp/.claude-stop-hook-$(date +%Y%m%d)-${DIR_HASH}"
+if [ -f "$LOCK" ]; then
   exit 0
 fi
+
+# Gate 0: if not in a git repo or no files changed, allow through silently
+if ! git rev-parse --is-inside-work-tree &>/dev/null; then
+  exit 0
+fi
+if [ -z "$(git diff --name-only HEAD 2>/dev/null)" ] && [ -z "$(git diff --name-only --cached 2>/dev/null)" ] && [ -z "$(git ls-files --others --exclude-standard 2>/dev/null)" ]; then
+  exit 0
+fi
+
+# Gate 1: first stop with actual changes — block once, set flag
+touch "$LOCK"
 
 cat <<'EOF'
 {

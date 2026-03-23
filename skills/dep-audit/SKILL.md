@@ -22,27 +22,14 @@ maintainable?"
 
 ## Outputs
 
-- **Standalone mode**: Store findings in the artifact DB:
-  ```bash
-  source artifacts/db.sh
-  db_upsert 'dep-audit' 'findings' 'standalone' "$FINDINGS_CONTENT"
-  ```
-- **Multi-model mode** (called by meta-review): Store per-model findings:
-  - Sonnet: `db_upsert 'dep-audit' 'findings' 'sonnet' "$CONTENT"`
-  - Codex: `db_upsert 'dep-audit' 'findings' 'codex' "$CONTENT"`
-  - Gemini: `db_upsert 'dep-audit' 'findings' 'gemini' "$CONTENT"`
+See `references/review-lens-framework.md` for the shared output pattern.
+Lens name for DB operations: `dep-audit`
 
 ## Instructions
 
 ### Fresh Findings Check
 
-Before running a new scan, check if fresh findings already exist:
-```bash
-source artifacts/db.sh
-AGE=$(db_age_hours 'dep-audit' 'findings' 'standalone')
-```
-If `$AGE` is non-empty and less than 24, report: "Found fresh dep-audit findings from $AGE hours ago. Reuse them? (y/n)"
-If the user says yes, read findings from DB. If no record exists or user says no, proceed.
+See `references/review-lens-framework.md`. Lens: `dep-audit`.
 
 ### 1. Detect Ecosystem
 
@@ -195,8 +182,7 @@ End with:
 
 ## Execution Mode
 
-- **Standalone**: Spawn the `review-lens` agent (`subagent_type: "review-lens"`) with this skill's lens instructions and input files. Stores findings as `db_upsert 'dep-audit' 'findings' 'standalone'`.
-- **Via meta-review**: The `review-lens` agent runs Sonnet review, while Codex (`/codex`) and Gemini (`/gemini`) run in parallel with the same prompt. Each stores findings under label `sonnet`/`codex`/`gemini`. The meta-review skill handles synthesis.
+See `references/review-lens-framework.md`. Lens: `dep-audit`.
 
 ## References (on-demand)
 
@@ -235,4 +221,4 @@ User: We haven't updated deps in a year. How bad is it?
 
 ---
 
-Before completing, read and follow `../references/cross-cutting-rules.md`.
+Before completing, read and follow `../references/review-lens-framework.md` and `../references/cross-cutting-rules.md`.

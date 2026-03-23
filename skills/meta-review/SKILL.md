@@ -292,14 +292,16 @@ Each Gemini invocation:
 1. Receives a prompt file containing: the atomic skill's review instructions,
    the `$SAST_SUMMARY` from Phase 1.5, plus relevant code context via
    `@path/to/file` references (use the file list from Phase 1, max ~10 files)
-2. Uses `codebase_investigator` sub-agent
+2. Uses the `/gemini` File Context template. Only force
+   `@codebase_investigator` if the current `/gemini` driver says the
+   environment supports it.
 3. Pipes output to a temp file, then stores in DB as label `gemini`:
    ```bash
    source artifacts/db.sh && db_upsert '{lens}' 'findings' 'gemini' "$(cat /tmp/lens-gemini-{lens}.md)" && rm /tmp/lens-gemini-{lens}.md
    ```
 
-   Load `/gemini` for invocation syntax. Key params: `--agent codebase_investigator`,
-   60s timeout. Prompt: `LENS_PROMPT` with `@file` references. Output to
+   Load `/gemini` for invocation syntax. Use the current File Context template
+   with a 60s timeout and `@file` references. Output to
    `/tmp/lens-gemini-{lens}.md`.
 
 If Gemini is unavailable or fails (timeout, empty output), **retry each

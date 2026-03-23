@@ -14,7 +14,7 @@ dispatched Opus subagent.
 ## Chain
 
 ```
-research-plan -> [approval gate] -> write prompt -> dispatch Opus -> present results
+research-execute Phase 0 (plan) -> [approval gate] -> write prompt -> dispatch Opus -> present results
 ```
 
 ## Inputs
@@ -29,7 +29,7 @@ research-plan -> [approval gate] -> write prompt -> dispatch Opus -> present res
 
 ### Phase 1: Research Plan
 
-Read and execute `../research-plan/SKILL.md`.
+Run Phase 0 (plan) of `../research-execute/SKILL.md`.
 
 Analyze the project context, extract research topics, categorize by lane
 (Academic / Code / Both), map to connectors, prioritize (P0/P1/P2), and

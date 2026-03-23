@@ -8,10 +8,7 @@ description: "Full project initialization from zero to approved build plan. Trig
 Meta-skill that chains all initialization atomic skills in order, taking a
 project from nothing to an approved build plan ready for implementation.
 
-**Context-window strategy**: Non-interactive phases are delegated to subagents
-to keep the main thread lean. Interactive phases (interviews, user approvals)
-stay inline. Each subagent reads its own SKILL.md — never load atomic skill
-files into the main context.
+**Context-window strategy**: See `references/meta-skill-guards.md`.
 
 ## Chain
 
@@ -102,9 +99,9 @@ sections filled, user has approved it.
 ### Phase 5: Research Plan [Subagent]
 
 Dispatch a subagent to analyze the project context and produce a research plan.
-Do NOT read `../research-plan/SKILL.md` into the main context. Read
-`agents/research-plan.md` for the prompt template — fill in the skill path,
-project root, and NNN before spawning.
+Do NOT read `../research-execute/SKILL.md` into the main context. Read
+`agents/research-plan.md` for the prompt template — fill in the skill path
+(research-execute, Phase 0), project root, and NNN before spawning.
 
 Present the subagent's topic summary to the user.
 
@@ -121,7 +118,7 @@ Present this choice to the user:
 > building the plan? This will validate technology choices and surface risks
 > early, but takes additional time.
 >
-> 1. **Run research** — execute research-plan, then feed findings into build-plan
+> 1. **Run research** — execute research, then feed findings into build-plan
 > 2. **Skip research** — proceed directly to build-plan using project-context.md alone"
 
 Wait for the user's answer. Do not assume.
@@ -195,11 +192,7 @@ If they choose 3, confirm and exit.
 
 ### Timeout Guards
 
-- Set a mental time limit of 5 minutes per phase. If a phase has not produced output in 5 minutes, check if the subprocess is still running.
-- For Gemini CLI calls: always use `$GTIMEOUT` with skill-appropriate values (120s for read-only analysis, 180s for larger prompts). If it times out, skip and note "Gemini timed out — skipping."
-- For Codex CLI calls: always use `$GTIMEOUT` with skill-appropriate values (120s for read-only review, 180s for generation or large prompts). Same fallback.
-- If a subagent has been running for more than 10 minutes with no output, consider it stalled and move on.
-- Report any timeouts in the completion summary so the user knows what was skipped.
+See `references/meta-skill-guards.md` for shared timeout and stall detection rules.
 
 ## Examples
 

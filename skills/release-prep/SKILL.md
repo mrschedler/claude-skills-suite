@@ -172,7 +172,8 @@ Use Codex to generate a detailed changelog from git history:
 After the changelog is drafted, generate user-friendly release notes:
 
 1. Load `/gemini` for invocation syntax.
-2. If available, invoke with 60s timeout, `--agent generalist`, prompt:
+2. If available, invoke using the `/gemini` Research / Analysis template with
+   a 60s timeout. Do not force `@generalist_agent`. Prompt:
    `"Convert this technical changelog into user-friendly release notes. Focus
    on what users care about: new features, fixed bugs, breaking changes that
    require action. Skip internal refactors. Write in a friendly, professional

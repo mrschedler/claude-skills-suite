@@ -63,7 +63,7 @@ if echo "$STAGED_FILES" | grep -qE '\.(js|jsx|ts|tsx|json)$'; then
   fi
   if command -v oxlint >/dev/null 2>&1; then
     OXLINT_OUT=$(echo "$JSTS_FILES" | xargs oxlint 2>/dev/null || true)
-    if echo "$OXLINT_OUT" | grep -qE '(error|warning)'; then
+    if echo "$OXLINT_OUT" | grep -qE 'Found [1-9]'; then
       ISSUES="${ISSUES}--- oxlint (JS/TS) ---\n${OXLINT_OUT}\n\n"
     fi
   fi
@@ -94,19 +94,43 @@ HOOKEOF
 fi
 
 # --- Phase 3: Codex semantic review (only if deterministic checks pass) ---
-CODEX=$(command -v codex 2>/dev/null)
+if command -v whence >/dev/null 2>&1; then
+  CODEX=$(whence -p codex 2>/dev/null)
+elif type -P codex >/dev/null 2>&1; then
+  CODEX=$(type -P codex 2>/dev/null)
+else
+  CODEX=$(command -v codex 2>/dev/null)
+fi
 test -x "$CODEX" || CODEX="/opt/homebrew/bin/codex"
 if [ ! -x "$CODEX" ] && [ -d "$HOME/.nvm/versions/node" ]; then
-  CODEX=$(find "$HOME/.nvm/versions/node" -path '*/bin/codex' -type f 2>/dev/null | sort -V | tail -1)
+  CODEX=$(find "$HOME/.nvm/versions/node" -path '*/bin/codex' \( -type f -o -type l \) 2>/dev/null | sort -V | tail -1)
 fi
 test -x "$CODEX" && export PATH="$(dirname "$CODEX"):$PATH"
 GTIMEOUT="/opt/homebrew/bin/gtimeout"
 
 if [ -x "$CODEX" ] && [ -x "$GTIMEOUT" ]; then
-  LINT_OUTPUT=$("$GTIMEOUT" 30 "$CODEX" exec --ephemeral --sandbox read-only \
-    --skip-git-repo-check --cd "$REPO_DIR" \
-    "Review the staged git changes. Check ONLY for: 1) Logic errors 2) Security vulnerabilities (injection, hardcoded secrets) 3) Missing error handling for critical paths 4) Obvious bugs. Deterministic linters already passed — focus on semantic issues only. If everything looks fine, say CLEAN." \
-    2>/dev/null || echo "CLEAN")
+  run_codex_semantic_review() {
+    local timeout_s="$1"
+    "$GTIMEOUT" "$timeout_s" "$CODEX" exec --ephemeral --sandbox read-only \
+      -c 'mcp_servers.homelab-gateway.enabled=false' \
+      -c 'mcp_servers.ssh-tower.enabled=false' \
+      -c 'mcp_servers.github.enabled=false' \
+      --skip-git-repo-check --cd "$REPO_DIR" \
+      "Review the staged git changes. Check ONLY for: 1) Logic errors 2) Security vulnerabilities (injection, hardcoded secrets) 3) Missing error handling for critical paths 4) Obvious bugs. Deterministic linters already passed — focus on semantic issues only. If everything looks fine, say CLEAN."
+  }
+
+  set +e
+  LINT_OUTPUT=$(run_codex_semantic_review 30 2>/dev/null)
+  CODEX_STATUS=$?
+  if [ "$CODEX_STATUS" -eq 124 ]; then
+    LINT_OUTPUT=$(run_codex_semantic_review 60 2>/dev/null)
+    CODEX_STATUS=$?
+  fi
+  set -e
+
+  if [ "$CODEX_STATUS" -ne 0 ]; then
+    LINT_OUTPUT="CLEAN"
+  fi
 
   if echo "$LINT_OUTPUT" | grep -qiE '(CRITICAL|SECURITY|HARDCODED.*(KEY|SECRET|TOKEN|PASSWORD))'; then
     cat <<HOOKEOF

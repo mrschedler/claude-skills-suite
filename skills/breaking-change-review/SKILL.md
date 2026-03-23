@@ -24,25 +24,14 @@ refactor code without considering downstream impact.
 
 ## Outputs
 
-- **Standalone mode**: Store findings in the artifact DB:
-  ```bash
-  source artifacts/db.sh
-  db_upsert 'breaking-change-review' 'findings' 'standalone' "$FINDINGS_CONTENT"
-  ```
-- **Multi-model mode** (called by meta-review): Store per-model findings:
-  - Sonnet: `db_upsert 'breaking-change-review' 'findings' 'sonnet' "$CONTENT"`
-  - Codex: `db_upsert 'breaking-change-review' 'findings' 'codex' "$CONTENT"`
+See `references/review-lens-framework.md` for the shared output pattern.
+Lens name for DB operations: `breaking-change-review`
 
 ## Instructions
 
 ### Fresh Findings Check
 
-Before running a new scan, check if fresh findings already exist:
-```bash
-source artifacts/db.sh
-AGE=$(db_age_hours 'breaking-change-review' 'findings' 'standalone')
-```
-If `$AGE` is non-empty and less than 24, report: "Found fresh breaking-change-review findings from $AGE hours ago. Reuse them? (y/n)"
+See `references/review-lens-framework.md`. Lens: `breaking-change-review`.
 
 ### 1. Determine Comparison Base
 
@@ -164,8 +153,7 @@ End with:
 
 ## Execution Mode
 
-- **Standalone**: Spawn the `review-lens` agent (`subagent_type: "review-lens"`) with this skill's lens instructions. Stores findings as `db_upsert 'breaking-change-review' 'findings' 'standalone'`.
-- **Via meta-review**: The `review-lens` agent runs the Sonnet review, while Codex runs in parallel. Each stores findings under label `sonnet` or `codex`. Meta-review handles synthesis.
+See `references/review-lens-framework.md`. Lens: `breaking-change-review`.
 
 ## Examples
 
@@ -191,4 +179,4 @@ User: We're changing the database schema. Is it safe?
 
 ---
 
-Before completing, read and follow `../references/cross-cutting-rules.md`.
+Before completing, read and follow `../references/review-lens-framework.md` and `../references/cross-cutting-rules.md`.

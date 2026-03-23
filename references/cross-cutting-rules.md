@@ -27,6 +27,13 @@ These rules apply to every skill in the suite. Every atomic SKILL.md must follow
    - If invocation details change, update the driver skill only.
    - For Vibe, keep prompts narrowly scoped to named files/directories or a single work unit with explicit deliverables. Never ask it to scope the whole project first.
 
+7. **Homelab Tools memory sync (MANDATORY)** — Keep Qdrant memory current so home Claude stays informed across projects and sessions. Use `mcp__claude_ai_Homelab_Tools__memory_call` with `tool: 'store_memory'`.
+   - **After `/meta-execute` completion**: Store execution summary (units completed/failed/blocked, retry counts, confidence scores, wave count). Tags: `meta-execute`, `execution-summary`, `{project-name}`.
+   - **After `/github-sync` push**: Diff what was pushed against what memory already knows (search first, then store the delta). Include: commit hash, branch, files changed summary, commit message. Tags: `github-sync`, `commit-log`, `{project-name}`.
+   - **After `/research-execute` or `/meta-deep-research-execute` synthesis**: Store the executive summary + source tally + key findings. Tags: `research`, `{NNN}` or `{NNN}D`, `{project-name}`.
+   - **Format**: `{ "tool": "store_memory", "args": { "content": "<summary>", "metadata": { "tags": [...], "skill": "<skill-name>", "project": "<project-name>" } } }`
+   - **Dedup rule**: Before storing, search memory with the skill name + project name. If a recent entry (same skill, same project, <24h) exists, update it instead of creating a duplicate.
+
 ## Structured Note Schema
 
 Every note in `cnotes.md` uses this format. Insert newest first (top insertion below `## Notes (Newest First)`). Once a newer note exists above yours, your note is locked — do not modify it.

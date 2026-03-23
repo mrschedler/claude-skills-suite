@@ -223,7 +223,7 @@ The suite works with Claude alone, but multi-model features require external CLI
 | CLI | Install | Used For |
 |-----|---------|----------|
 | [Codex](https://github.com/openai/codex) | `npm install -g @openai/codex` | Review+fix, code generation |
-| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | `npm install -g @anthropic-ai/gemini-cli` | Web research, architecture review |
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | `npm install -g @google/gemini-cli` | Web research, architecture review |
 | [Vibe](https://github.com/mistralai/vibe) | `pip install vibe-cli` | Fast code generation |
 | [Cursor](https://www.cursor.com/) | Cursor Pro+ desktop app | Generation, review |
 | [Copilot](https://github.com/github/copilot-cli) | `npm install -g @githubnext/github-copilot-cli` | Review, multi-model tasks |

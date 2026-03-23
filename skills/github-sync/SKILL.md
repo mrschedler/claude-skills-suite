@@ -32,6 +32,11 @@ Commit and push all changes in the current working tree to GitHub. Handle branch
 
 8. **Verify.** Run `git status` one final time. The working tree should be clean. Report the commit hash, branch, and remote.
 
+9. **Homelab Tools memory sync (MANDATORY).** After a successful push, update Qdrant so home Claude stays current. Per cross-cutting rule 7:
+   - **Search first**: Query memory for this project name + `github-sync` tag to find the last known state.
+   - **Store the delta**: Include commit hash, branch, files changed summary, and commit message. If a recent entry exists (<24h), update it instead of creating a new one.
+   - Use `mcp__claude_ai_Homelab_Tools__memory_call` with `tool: 'store_memory'`. Tags: `github-sync`, `commit-log`, `{project-name}`.
+
 ## Examples
 
 ```

@@ -25,15 +25,8 @@ exists to catch what agents miss.
 
 ## Outputs
 
-- **Standalone mode**: Store findings in the artifact DB:
-  ```bash
-  source artifacts/db.sh
-  db_upsert 'security-review' 'findings' 'standalone' "$FINDINGS_CONTENT"
-  ```
-- **Multi-model mode** (called by meta-review): Store per-model findings in the artifact DB:
-  - Sonnet: `db_upsert 'security-review' 'findings' 'sonnet' "$CONTENT"`
-  - Codex: `db_upsert 'security-review' 'findings' 'codex' "$CONTENT"`
-  - Gemini: `db_upsert 'security-review' 'findings' 'gemini' "$CONTENT"`
+See `references/review-lens-framework.md` for the shared output pattern.
+Lens name for DB operations: `security-review`
 
 ## Priority System
 
@@ -48,15 +41,7 @@ for the full checklist with CWEs and detection patterns.
 
 ### Fresh Findings Check
 
-Before running a new scan, check if fresh findings already exist:
-```bash
-source artifacts/db.sh
-AGE=$(db_age_hours 'security-review' 'findings' 'standalone')
-# For multi-model: db_age_hours 'security-review' 'findings' 'sonnet'
-```
-If `$AGE` is non-empty and less than 24, report: "Found fresh security-review findings from $AGE hours ago. Reuse them? (y/n)"
-If the user says yes, read findings from DB: `db_read 'security-review' 'findings' 'standalone'` (or `sonnet`/`codex`/`gemini` as appropriate).
-If no record exists or user says no, proceed with a fresh scan.
+See `references/review-lens-framework.md`. Lens: `security-review`.
 
 ### 1. Load Context
 
@@ -201,8 +186,7 @@ End with:
 
 ## Execution Mode
 
-- **Standalone**: Spawn the `review-lens` agent (`subagent_type: "review-lens"`) with this skill's lens instructions and input files. Stores findings in DB as `db_upsert 'security-review' 'findings' 'standalone'`.
-- **Via meta-review**: The `review-lens` agent runs the Sonnet review, while Codex (`/codex`) and Gemini (`/gemini`) run in parallel with the same prompt. Each model stores findings in DB under label `sonnet`, `codex`, or `gemini`. The meta-review skill handles synthesis.
+See `references/review-lens-framework.md`. Lens: `security-review`.
 
 ## References (on-demand)
 
@@ -241,4 +225,4 @@ User: This code went through 5 rounds of AI iteration. Is it secure?
 
 ---
 
-Before completing, read and follow `../references/cross-cutting-rules.md`.
+Before completing, read and follow `../references/review-lens-framework.md` and `../references/cross-cutting-rules.md`.

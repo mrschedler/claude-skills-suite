@@ -7,249 +7,305 @@ disable-model-invocation: true
 # Gemini CLI Driver
 
 Encode the exact Gemini CLI invocation for a given task type. This is a
-utility skill — it provides command templates that other skills compose into
-their workflows. It is not triggered directly by the user in most cases.
+utility skill. Other skills should delegate syntax, path resolution, model
+selection, timeout handling, and fallback logic here instead of duplicating
+CLI flags.
 
-## PATH & Absolute Paths
+## PATH & Availability
 
-`run_in_background` and subagent Bash calls spawn non-interactive subshells
-that do NOT source `.zshrc`/`.zprofile`. Custom PATH entries are missing.
+`run_in_background` and non-interactive subshells may miss shell aliases and
+custom startup files. Resolve the real binary path first. Do not hardcode a
+username-specific install path.
 
-**Use absolute paths for all Gemini invocations:**
+```bash
+GEMINI="$(whence -p gemini 2>/dev/null)"
+[ -n "$GEMINI" ] || GEMINI="$(type -P gemini 2>/dev/null)"
 
+if [ -z "$GEMINI" ] && [ -d "$HOME/.nvm/versions/node" ]; then
+  GEMINI="$(find "$HOME/.nvm/versions/node" -path '*/bin/gemini' \( -type f -o -type l \) -print 2>/dev/null | sort -V | tail -n 1)"
+fi
+
+if [ -z "$GEMINI" ] && [ -x /opt/homebrew/bin/gemini ]; then
+  GEMINI="/opt/homebrew/bin/gemini"
+fi
+if [ -z "$GEMINI" ] && [ -x /usr/local/bin/gemini ]; then
+  GEMINI="/usr/local/bin/gemini"
+fi
+if [ -z "$GEMINI" ] && [ -x "$HOME/.npm-global/bin/gemini" ]; then
+  GEMINI="$HOME/.npm-global/bin/gemini"
+fi
+[ -n "$GEMINI" ] || { echo "Gemini CLI not installed"; exit 1; }
 ```
-/Users/trevorbyrum/.npm-global/bin/gemini
+
+Local validation on this machine found the live binary at:
+
+```bash
+/Users/byrum_work/.nvm/versions/node/v24.13.0/bin/gemini
 ```
 
-Fallback location (if installed via Homebrew): `/opt/homebrew/bin/gemini`
+The old hardcoded path
+`/Users/trevorbyrum/.npm-global/bin/gemini` failed with `No such file or directory`.
 
-Every template below uses the absolute path. Do not use bare `gemini`.
+If unavailable, fall back:
+- **Web research tasks**: use Claude WebSearch.
+- **Review / critique tasks**: retry with Copilot, then skip and note the gap.
 
 ## Concurrency Limit (MANDATORY)
 
 Gemini supports a maximum of **2** simultaneous processes. Exceeding this
-causes rate-limit errors and wasted tokens. If you need to run more than 2,
-queue excess tasks and launch them as slots free up — identical to the Codex
-5-slot pattern in `/codex`. This limit is set in `general.md` and applies to
-ALL skills.
-
-## Availability Check
-
-Before any invocation, verify the CLI is installed:
-
-```bash
-GEMINI="/Users/trevorbyrum/.npm-global/bin/gemini"
-test -x "$GEMINI" || GEMINI="/opt/homebrew/bin/gemini"
-test -x "$GEMINI" || { echo "Gemini CLI not installed"; exit 1; }
-```
-
-If unavailable, fall back:
-- **Web research tasks**: use Claude WebSearch instead.
-- **Review / critique tasks**: skip and note "Gemini unavailable" in output.
+causes rate-limit errors and wasted tokens. Queue excess tasks exactly like
+the Codex 5-slot pattern in `/codex`.
 
 ## Environment Safety
 
-Gemini CLI is sensitive to environment variables that change its behavior.
-Before every call, clean the environment:
+Gemini CLI is sensitive to environment variables that change runtime behavior.
+Before every call, clear the high-risk variables:
 
 ```bash
-unset DEBUG 2>/dev/null        # DEBUG causes CLI to hang trying to attach a debugger
-unset CI 2>/dev/null           # CI_* vars force non-interactive detection
-unset GOOGLE_CLOUD_PROJECT 2>/dev/null  # Triggers org subscription check for personal accounts
+unset DEBUG 2>/dev/null                # validated: floods stderr and changes runtime behavior
+unset GOOGLE_CLOUD_PROJECT 2>/dev/null # validated: broke auth flow on this machine
+unset CI 2>/dev/null                   # harmless to clear in automation; did not break simple prompts when set
 ```
-
-These unsets go on the same line or in a wrapper function — they only affect
-the current shell invocation.
 
 ## Timeout Binary (MANDATORY)
 
-macOS ships NO `timeout` command. The zsh alias `timeout=gtimeout` only
-works in interactive shells — subagents, `run_in_background`, and bare
-bash subshells do NOT have it. Using bare `timeout` in these contexts
-invokes a perl-based alarm wrapper that **breaks Gemini** (SIGALRM kills
-the process incorrectly).
-
-**Always use the absolute path to GNU coreutils `gtimeout`:**
+Do not rely on a shell alias for `timeout`. Resolve a real binary:
 
 ```bash
 GTIMEOUT="/opt/homebrew/bin/gtimeout"
-test -x "$GTIMEOUT" || { echo "gtimeout not installed (brew install coreutils)"; exit 1; }
+[ -x "$GTIMEOUT" ] || GTIMEOUT="$(command -v gtimeout 2>/dev/null || command -v timeout 2>/dev/null)"
+[ -n "$GTIMEOUT" ] || { echo "GNU timeout not installed (brew install coreutils)"; exit 1; }
 ```
 
-Every template below uses `$GTIMEOUT`. Do not use bare `timeout`.
+Use `$GTIMEOUT` in every non-interactive invocation.
 
-## Sub-Agent Types
+## Headless Output Mode (MANDATORY)
 
-Gemini CLI has three built-in sub-agents. Specify the right one per task:
+Prefer JSON output in automation. Live testing on Gemini CLI `0.33.0` showed:
 
-| Sub-Agent | Use For | Flag |
+- `-o json` and `--output-format json` both work.
+- Raw text `-p "..."` was flaky and timed out in local testing.
+- Successful runs still emit startup noise on stderr (`Loaded cached credentials`,
+  extension loading, MCP notices), so redirect stderr away from output files.
+
+**Standard automation pattern:**
+
+```bash
+unset DEBUG 2>/dev/null
+unset GOOGLE_CLOUD_PROJECT 2>/dev/null
+unset CI 2>/dev/null
+$GTIMEOUT 120 "$GEMINI" -m gemini-2.5-flash-lite -o json -p "PROMPT" 2>/dev/null | jq -r '.response // empty' > OUTPUT_FILE
+```
+
+## Subagents (Current CLI Behavior)
+
+Gemini CLI `0.33.0` does **not** expose a top-level `--agent` flag. Local test:
+
+```bash
+$GEMINI --agent codebase_investigator -p "Reply with OK."
+# -> exit 1, stderr starts with: Unknown argument: agent
+```
+
+Use prompt forcing instead: start the prompt with `@subagent_name`.
+
+| Subagent | Use For | Invocation |
 |---|---|---|
-| `codebase_investigator` | Reviews, architectural analysis, bug root-cause hunting | `--agent codebase_investigator` |
-| `generalist` | High-volume batch tasks, speculative research, web grounding | `--agent generalist` |
-| `cli_help` | Questions about Gemini CLI features and configuration | `--agent cli_help` |
+| `codebase_investigator` | Deep codebase analysis, architecture review, dependency tracing | `-p "@codebase_investigator ..."` |
+| `cli_help` | Interactive/manual Gemini CLI questions | `-p "@cli_help ..."` |
+| `generalist_agent` | Internal routing agent | Do **not** force in automation; use plain `-p` |
+| `browser_agent` | Experimental browser automation | Avoid in normal skill flows; disabled by default |
 
 ### Routing by Skill Context
 
-| Calling Skill | Sub-Agent |
+| Calling Skill | Preferred Pattern |
 |---|---|
-| counter-review, security-review, refactor-review, drift-review, completeness-review, compliance-review, test-review | `codebase_investigator` |
-| research-execute, project-questions | `generalist` |
-| skill-doctor (Gemini CLI diagnostics) | `cli_help` |
+| counter-review, security-review, refactor-review, drift-review, completeness-review, compliance-review, test-review | Plain file-context prompt first; escalate to `@codebase_investigator` only when the environment supports it |
+| research-execute, project-questions, release-prep | Plain research/analysis prompt; do not force `@generalist_agent` |
+| skill-doctor | Use `gemini --help`, `gemini skills --help`, `gemini mcp --help` directly; do not rely on `@cli_help` in automation |
 
-If no sub-agent is specified, Gemini uses its default routing. Explicit
-selection is preferred for consistency.
+### Built-in Subagent Reliability
+
+Built-in subagents currently route to preview models on this machine:
+
+- `codebase_investigator` defaulted to `gemini-3.1-pro-preview`
+- `generalist` defaulted to `gemini-3-flash-preview`
+
+In local testing, both hit `429 MODEL_CAPACITY_EXHAUSTED` in headless runs.
+The subagent mechanism itself still works, but callers need a fallback plan.
+
+**Preferred order:**
+1. Try a plain `-p` prompt with explicit `@file` references and a pinned model.
+2. Force `@codebase_investigator` only if you specifically need the specialist.
+3. If forced subagents repeatedly 429, retry with Copilot or use a local agent override.
+
+### Optional Agent Override Workaround
+
+If `@codebase_investigator` keeps failing on preview-model capacity, run from an
+isolated working directory that contains:
+
+```json
+{
+  "agents": {
+    "overrides": {
+      "codebase_investigator": {
+        "modelConfig": { "model": "gemini-2.5-flash-lite" },
+        "runConfig": { "maxTurns": 10 }
+      }
+    }
+  }
+}
+```
+
+Local validation confirmed that this override restored successful headless
+`@codebase_investigator` runs.
 
 ## Task-Type Templates
 
 ### Research / Analysis
 
-The bread-and-butter use case. Gemini has native Google Search grounding,
-making it superior to other CLIs for web research.
+Use plain headless prompts. Do not force `@generalist_agent`.
 
 ```bash
 unset DEBUG 2>/dev/null
-$GTIMEOUT 120 "$GEMINI" --agent generalist -p "PROMPT" 2>/dev/null > OUTPUT_FILE
+unset GOOGLE_CLOUD_PROJECT 2>/dev/null
+unset CI 2>/dev/null
+$GTIMEOUT 120 "$GEMINI" -m gemini-2.5-flash-lite -o json -p "PROMPT" 2>/dev/null | jq -r '.response // empty' > OUTPUT_FILE
 ```
 
-### File Context (@-syntax)
+### File Context (`@path`)
 
-Gemini supports `@path/to/file` inline references to include file contents
-in the prompt without piping.
+Gemini supports inline file references in the prompt.
 
 ```bash
 unset DEBUG 2>/dev/null
-$GTIMEOUT 60 "$GEMINI" --agent codebase_investigator -p "Review @src/index.ts for security issues" 2>/dev/null > OUTPUT_FILE
+unset GOOGLE_CLOUD_PROJECT 2>/dev/null
+unset CI 2>/dev/null
+$GTIMEOUT 60 "$GEMINI" -m gemini-2.5-flash-lite -o json --approval-mode plan -p "Review @src/index.ts for security issues" 2>/dev/null | jq -r '.response // empty' > OUTPUT_FILE
 ```
+
+### Forced `@codebase_investigator` (Optional)
+
+Use only when you need deeper codebase analysis than a plain file-context
+prompt gives you.
+
+```bash
+unset DEBUG 2>/dev/null
+unset GOOGLE_CLOUD_PROJECT 2>/dev/null
+unset CI 2>/dev/null
+$GTIMEOUT 60 "$GEMINI" -o json --approval-mode plan -p "@codebase_investigator Review @src/index.ts for architectural issues" 2>/dev/null | jq -r '.response // empty' > OUTPUT_FILE
+```
+
+If this returns capacity errors, retry with Copilot or apply the local agent
+override shown above.
 
 ### Long Prompt via stdin
 
-For prompts too long to pass as a `-p` argument, pipe from a file:
+stdin still works in headless mode. Local validation:
+`printf 'Reply with exactly PIPE_OK.' | gemini -m gemini-2.5-flash-lite -o json -p ''`.
 
 ```bash
 unset DEBUG 2>/dev/null
-cat /path/to/prompt.md | $GTIMEOUT 120 "$GEMINI" 2>/dev/null > OUTPUT_FILE
+unset GOOGLE_CLOUD_PROJECT 2>/dev/null
+unset CI 2>/dev/null
+cat /path/to/prompt.md | $GTIMEOUT 120 "$GEMINI" -m gemini-2.5-flash-lite -o json -p '' 2>/dev/null | jq -r '.response // empty' > OUTPUT_FILE
 ```
 
-### JSON Output
+### CLI Diagnostics
 
-Use `--output-format json` (there is no `-o` short flag) and extract the
-response field with `jq`:
+For Gemini CLI diagnostics, prefer native help commands over `@cli_help`:
 
 ```bash
-unset DEBUG 2>/dev/null
-$GTIMEOUT 120 "$GEMINI" -p "PROMPT" --output-format json 2>/dev/null | jq -r '.response' > OUTPUT_FILE
+"$GEMINI" --help
+"$GEMINI" skills --help
+"$GEMINI" mcp --help
+"$GEMINI" hooks --help
 ```
 
 ### Model Selection
 
-Override the default model when a specific model is needed (e.g., Pro for
-harder reasoning):
+Pin a model explicitly for automation. `gemini-2.5-flash-lite` was the most
+reliable local choice in testing; move to `gemini-2.5-pro` only when needed.
 
 ```bash
 unset DEBUG 2>/dev/null
-$GTIMEOUT 120 "$GEMINI" -m gemini-2.5-pro -p "PROMPT" 2>/dev/null > OUTPUT_FILE
+unset GOOGLE_CLOUD_PROJECT 2>/dev/null
+unset CI 2>/dev/null
+$GTIMEOUT 120 "$GEMINI" -m gemini-2.5-pro -o json -p "PROMPT" 2>/dev/null | jq -r '.response // empty' > OUTPUT_FILE
 ```
 
 ## Output Validation (MANDATORY)
 
-Gemini produces **very long lines** — a typical response may be only 5-10 lines
-but each line can be 500-2000+ characters. **Do NOT judge output quality by
-line count.** An 8-line response with 4000+ characters is a full, valid response.
-
-**Validation rules:**
-1. Check character count, not line count: `wc -c < OUTPUT_FILE` — expect ≥ 200
-   chars for a real response
-2. Check for empty/error: `[ -s OUTPUT_FILE ]` (file exists and is non-empty)
-3. An output with < 50 characters is likely a failure or error message
-
-**For structured parsing**, use `--output-format json` and extract with `jq`:
+Validate the extracted response, not line count:
 
 ```bash
-unset DEBUG 2>/dev/null
-$GTIMEOUT 120 "$GEMINI" -p "PROMPT" --output-format json 2>/dev/null | jq -r '.response' > OUTPUT_FILE
-# Validate: at least 200 chars
 CHARS=$(wc -c < OUTPUT_FILE 2>/dev/null | tr -d ' ')
 if [ "${CHARS:-0}" -lt 50 ]; then
-  echo "Gemini output too small (${CHARS} chars) — likely failed"
+  echo "Gemini output too small (${CHARS:-0} chars) — likely failed"
 fi
 ```
 
-**For review/research tasks**, prefer `--output-format json` + `jq` extraction
-over raw text mode. This avoids ANSI artifacts and makes character-count
-validation reliable.
+Rules:
+1. Prefer `--output-format json` / `-o json`.
+2. Extract `.response` with `jq -r '.response // empty'`.
+3. Treat any empty output, or any research/review output under ~50 chars, as failure.
+4. Inspect stderr for startup noise, 429s, auth errors, or deprecated-flag warnings.
 
 ## Critical Gotchas
 
-1. **Always wrap with `$GTIMEOUT`** (absolute path, never bare `timeout`)
-   — the CLI hangs indefinitely if a tool call is denied in `-p`
-   (non-interactive) mode. 120s is the standard ceiling for research
-   tasks; use 60s for reviews and 30s for quick lookups.
-
-2. **No `-o` short flag** — the output format flag is `--output-format`
-   with values `text`, `json`, or `stream-json`. Using `-o` will error or
-   be misinterpreted.
-
-3. **No `-y` short flag** — use `--yolo` if you need to auto-approve tool
-   calls. This is rarely needed in non-interactive mode.
-
-4. **`--allowed-tools` is broken in non-interactive mode** — if the task
-   needs Gemini to use its built-in tools (Google Search, code execution),
-   pass `--yolo` instead.
-
-5. **Rate limits** — free tier allows 60 requests per minute and 1,000
-   requests per day. If you hit 429 errors, back off or switch to Claude
-   WebSearch.
-
-6. **Exit codes**:
-   - `0` — success
-   - `41` — authentication failure
-   - `42` — input error (bad flags, bad prompt)
-   - `130` — cancelled (timeout or Ctrl-C)
-
-7. **`2>/dev/null` is mandatory** — stderr contains progress spinners and
-   ANSI codes that corrupt file output and inflate context size.
+1. **`--agent` is invalid on Gemini CLI 0.33.0**. Use `@subagent` at the start of the prompt.
+2. **`-o` exists**. The old "no short flag" guidance is wrong; `-o json` worked in local tests.
+3. **`-y` exists**. The old "no short flag" guidance is wrong; `-y` and `--yolo` both worked.
+4. **`--allowed-tools` is deprecated, not gone**. It still parses on 0.33.0, but Gemini warns to migrate to the Policy Engine. Avoid relying on it in new templates.
+5. **stderr is noisy even on success**. Redirect it away from output files.
+6. **`GOOGLE_CLOUD_PROJECT` can break auth/subscription resolution**. Clear it before automation.
+7. **`@cli_help` was unreliable in headless automation** on this machine. It timed out and logged unauthorized-tool errors. Use native help commands instead.
+8. **Do not rely on a fixed exit-code map**. Local tests observed: success `0`, bad flag `1`, wrapper timeout `124`. Treat any non-zero exit as failure and inspect stderr.
 
 ## Fallback Behavior
 
 **Copilot is Gemini's primary fallback.** When Gemini fails for any reason,
 retry with Copilot (`/copilot`) before falling back to WebSearch or skipping.
-Copilot shares the same 2-slot concurrency limit and timeout patterns.
 
 | Failure Mode | Fallback |
 |---|---|
-| CLI not installed | Try Copilot (`/copilot`); then Claude WebSearch for research, skip for review |
-| Timeout (exit 130) | Retry once with 180s; if still fails, try Copilot; then WebSearch |
-| Auth failure (exit 41) | Try Copilot; then skip and note "Gemini+Copilot unavailable" |
-| Rate limit (HTTP 429) | Try Copilot; then Claude WebSearch |
-| Capacity exhausted | Try Copilot; then Claude WebSearch |
+| CLI not installed | Try Copilot; then Claude WebSearch for research; skip for review |
+| Timeout / wrapper timeout | Retry once with a longer timeout; then Copilot; then WebSearch |
+| Auth failure | Try Copilot; then skip and note "Gemini+Copilot unavailable" |
+| 429 / capacity exhausted | Retry once with a pinned stable model or local agent override; then Copilot; then Claude WebSearch |
+| Empty output | Retry with JSON mode and pinned model; then Copilot |
 
 ## Examples
 
 ```
-Skill (research): Needs web research on "Kubernetes operator patterns 2026".
+Skill (research): Needs current Kubernetes operator patterns.
 --> unset DEBUG 2>/dev/null
-    $GTIMEOUT 120 "$GEMINI" -p "Research current Kubernetes operator patterns and best practices as of 2026. Include framework comparisons." 2>/dev/null > /tmp/k8s-operator-research.md
+    unset GOOGLE_CLOUD_PROJECT 2>/dev/null
+    unset CI 2>/dev/null
+    $GTIMEOUT 120 "$GEMINI" -m gemini-2.5-flash-lite -o json -p "Research current Kubernetes operator patterns and best practices as of 2026. Include framework comparisons." 2>/dev/null | jq -r '.response // empty' > /tmp/k8s-operator-research.md
 ```
 
 ```
-Skill (counter-review): Needs Gemini to review a file for architecture issues.
+Skill (review): Needs architecture feedback on a source file.
 --> unset DEBUG 2>/dev/null
-    $GTIMEOUT 60 "$GEMINI" -p "Review @src/server.ts for architectural issues: over-abstraction, missing error handling, scaling bottlenecks. Be specific." 2>/dev/null > /tmp/gemini-review.md
+    unset GOOGLE_CLOUD_PROJECT 2>/dev/null
+    unset CI 2>/dev/null
+    $GTIMEOUT 60 "$GEMINI" -m gemini-2.5-flash-lite -o json --approval-mode plan -p "Review @src/server.ts for architectural issues: over-abstraction, missing error handling, scaling bottlenecks. Be specific." 2>/dev/null | jq -r '.response // empty' > /tmp/gemini-review.md
 ```
 
 ```
-Skill (plan): Needs devil's advocate perspective on a proposed architecture.
+Skill (deep review): Needs the codebase specialist specifically.
 --> unset DEBUG 2>/dev/null
-    cat /tmp/architecture-proposal.md | $GTIMEOUT 120 "$GEMINI" 2>/dev/null > /tmp/gemini-critique.md
+    unset GOOGLE_CLOUD_PROJECT 2>/dev/null
+    unset CI 2>/dev/null
+    $GTIMEOUT 60 "$GEMINI" -o json --approval-mode plan -p "@codebase_investigator Map the dependency chain from @src/index.ts to @src/db/client.ts and flag architectural risks." 2>/dev/null | jq -r '.response // empty' > /tmp/gemini-review.md
 ```
 
 ```
-Skill (parallel review): Firing Gemini alongside Codex and Claude for multi-model review.
+Skill (stdin prompt): Needs a long prompt from a temp file.
 --> unset DEBUG 2>/dev/null
-    $GTIMEOUT 120 "$GEMINI" -p "$(cat /tmp/review-prompt.md)" 2>/dev/null > /tmp/gemini-review-output.md &
-    GEMINI_PID=$!
-    # ... launch other reviews ...
-    wait $GEMINI_PID
+    unset GOOGLE_CLOUD_PROJECT 2>/dev/null
+    unset CI 2>/dev/null
+    cat /tmp/review-prompt.md | $GTIMEOUT 120 "$GEMINI" -m gemini-2.5-flash-lite -o json -p '' 2>/dev/null | jq -r '.response // empty' > /tmp/gemini-review-output.md
 ```
 
 ---
