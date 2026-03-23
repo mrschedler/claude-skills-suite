@@ -21,29 +21,14 @@ happy paths, and they look like real code at a glance.
 
 ## Outputs
 
-- **Standalone mode**: Store findings in the artifact DB:
-  ```bash
-  source artifacts/db.sh
-  db_upsert 'completeness-review' 'findings' 'standalone' "$FINDINGS_CONTENT"
-  ```
-- **Multi-model mode** (called by meta-review): Store per-model findings in the artifact DB:
-  - Sonnet: `db_upsert 'completeness-review' 'findings' 'sonnet' "$CONTENT"`
-  - Codex: `db_upsert 'completeness-review' 'findings' 'codex' "$CONTENT"`
-  - Gemini: `db_upsert 'completeness-review' 'findings' 'gemini' "$CONTENT"`
+See `references/review-lens-framework.md` for the shared output pattern.
+Lens name for DB operations: `completeness-review`
 
 ## Instructions
 
 ### Fresh Findings Check
 
-Before running a new scan, check if fresh findings already exist:
-```bash
-source artifacts/db.sh
-AGE=$(db_age_hours 'completeness-review' 'findings' 'standalone')
-# For multi-model: db_age_hours 'completeness-review' 'findings' 'sonnet'
-```
-If `$AGE` is non-empty and less than 24, report: "Found fresh completeness-review findings from $AGE hours ago. Reuse them? (y/n)"
-If the user says yes, read findings from DB: `db_read 'completeness-review' 'findings' 'standalone'` (or `sonnet`/`codex`/`gemini` as appropriate).
-If no record exists or user says no, proceed with a fresh scan.
+See `references/review-lens-framework.md`. Lens: `completeness-review`.
 
 ### 1. Pattern Scan
 
@@ -156,8 +141,7 @@ End with:
 
 ## Execution Mode
 
-- **Standalone**: Spawn the `review-lens` agent (`subagent_type: "review-lens"`) with this skill's lens instructions and input files. Stores findings in DB as `db_upsert 'completeness-review' 'findings' 'standalone'`.
-- **Via meta-review**: The `review-lens` agent runs the Sonnet review, while Codex (`/codex`) and Gemini (`/gemini`) run in parallel with the same prompt. Each model stores findings in DB under label `sonnet`, `codex`, or `gemini`. The meta-review skill handles synthesis.
+See `references/review-lens-framework.md`. Lens: `completeness-review`.
 
 ## Examples
 
@@ -180,4 +164,4 @@ User: Scan for TODOs and placeholders before we ship.
 
 ---
 
-Before completing, read and follow `../references/cross-cutting-rules.md`.
+Before completing, read and follow `../references/review-lens-framework.md` and `../references/cross-cutting-rules.md`.

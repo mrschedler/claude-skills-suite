@@ -28,29 +28,14 @@ what's written down.
 
 ## Outputs
 
-- **Standalone mode**: Store findings in the artifact DB:
-  ```bash
-  source artifacts/db.sh
-  db_upsert 'compliance-review' 'findings' 'standalone' "$FINDINGS_CONTENT"
-  ```
-- **Multi-model mode** (called by meta-review): Store per-model findings in the artifact DB:
-  - Sonnet: `db_upsert 'compliance-review' 'findings' 'sonnet' "$CONTENT"`
-  - Codex: `db_upsert 'compliance-review' 'findings' 'codex' "$CONTENT"`
-  - Gemini: `db_upsert 'compliance-review' 'findings' 'gemini' "$CONTENT"`
+See `references/review-lens-framework.md` for the shared output pattern.
+Lens name for DB operations: `compliance-review`
 
 ## Instructions
 
 ### Fresh Findings Check
 
-Before running a new scan, check if fresh findings already exist:
-```bash
-source artifacts/db.sh
-AGE=$(db_age_hours 'compliance-review' 'findings' 'standalone')
-# For multi-model: db_age_hours 'compliance-review' 'findings' 'sonnet'
-```
-If `$AGE` is non-empty and less than 24, report: "Found fresh compliance-review findings from $AGE hours ago. Reuse them? (y/n)"
-If the user says yes, read findings from DB: `db_read 'compliance-review' 'findings' 'standalone'` (or `sonnet`/`codex`/`gemini` as appropriate).
-If no record exists or user says no, proceed with a fresh scan.
+See `references/review-lens-framework.md`. Lens: `compliance-review`.
 
 ### 1. Collect All Rule Sources
 
@@ -145,8 +130,7 @@ End with:
 
 ## Execution Mode
 
-- **Standalone**: Spawn the `review-lens` agent (`subagent_type: "review-lens"`) with this skill's lens instructions and input files. Stores findings in DB as `db_upsert 'compliance-review' 'findings' 'standalone'`.
-- **Via meta-review**: The `review-lens` agent runs the Sonnet review, while Codex (`/codex`) and Gemini (`/gemini`) run in parallel with the same prompt. Each model stores findings in DB under label `sonnet`, `codex`, or `gemini`. The meta-review skill handles synthesis.
+See `references/review-lens-framework.md`. Lens: `compliance-review`.
 
 ## Examples
 
@@ -176,4 +160,4 @@ User: Review this PR against our coding standards.
 
 ---
 
-Before completing, read and follow `../references/cross-cutting-rules.md`.
+Before completing, read and follow `../references/review-lens-framework.md` and `../references/cross-cutting-rules.md`.

@@ -11,7 +11,7 @@
 | 2 | Make 7 review skills thin wrappers with shared logic | claude | open | 2026-03-07 | Reduce duplication; shared output format, severity, dispatch |
 | 2a | Troubleshoot Codex/Gemini in subagents | claude | open | 2026-03-11 | Codex: likely stale CLI templates (prompt-before-flags, bare `timeout`, outdated `app server` assumption), not a missing daemon. Gemini: still timing out in subagents. Both worked interactively but fail in background/subagent shells. |
 | 2b | Add project docs (cnotes, features, todo) to meta-init scaffold | claude | open | 2026-03-11 | meta-init should create these files during project init |
-| 2c | Auto-update Homelab Tools memory after github-sync | claude | open | 2026-03-11 | github-sync skill should store project state to qdrant memory after every push so home Claude stays current |
+| 2c | Auto-update Homelab Tools memory after github-sync, meta-execute, and research | claude | done | 2026-03-11 | Cross-cutting rule 7 added. Inline steps in github-sync, meta-execute, research-execute, meta-deep-research-execute. |
 
 ## P1 — High Impact
 

@@ -174,6 +174,14 @@ Report back to the dispatcher with ONLY:
 - Whether addendum cycle ran (and what it added)
 - Any CONTESTED findings needing human judgment (one line each)
 
+**Homelab Tools memory sync (MANDATORY):** Before returning, store the
+deep research summary in Qdrant. Per cross-cutting rule 7:
+- Use `mcp__claude_ai_Homelab_Tools__memory_call` with `tool: 'store_memory'`.
+- Content: executive summary + source tally + claim counts + contested
+  findings (condensed to ~500 words).
+- Tags: `research`, `deep-research`, `{NNN}D`, `{project-name}`.
+- Search first to avoid duplicating a recent entry for the same NNN.
+
 ## Error Handling
 
 - **Gemini unavailable**: Try Copilot as fallback for Track D (same 2-slot

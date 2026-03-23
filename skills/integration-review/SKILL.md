@@ -22,27 +22,14 @@ even unit tests — they only fail at integration time or in production.
 
 ## Outputs
 
-- **Standalone mode**: Store findings in the artifact DB:
-  ```bash
-  source artifacts/db.sh
-  db_upsert 'integration-review' 'findings' 'standalone' "$FINDINGS_CONTENT"
-  ```
-- **Multi-model mode** (called by meta-review): Store per-model findings:
-  - Sonnet: `db_upsert 'integration-review' 'findings' 'sonnet' "$CONTENT"`
-  - Codex: `db_upsert 'integration-review' 'findings' 'codex' "$CONTENT"`
-  - Gemini: `db_upsert 'integration-review' 'findings' 'gemini' "$CONTENT"`
+See `references/review-lens-framework.md` for the shared output pattern.
+Lens name for DB operations: `integration-review`
 
 ## Instructions
 
 ### Fresh Findings Check
 
-Before running a new scan, check if fresh findings already exist:
-```bash
-source artifacts/db.sh
-AGE=$(db_age_hours 'integration-review' 'findings' 'standalone')
-```
-If `$AGE` is non-empty and less than 24, report: "Found fresh integration-review findings from $AGE hours ago. Reuse them? (y/n)"
-If the user says yes, read findings from DB. If no record exists or user says no, proceed with a fresh scan.
+See `references/review-lens-framework.md`. Lens: `integration-review`.
 
 ### Phase 1: Map the Codebase Surface
 
@@ -146,8 +133,7 @@ End with:
 
 ## Execution Mode
 
-- **Standalone**: Spawn the `review-lens` agent (`subagent_type: "review-lens"`) with this skill's lens instructions and input files. Stores findings in DB as `db_upsert 'integration-review' 'findings' 'standalone'`.
-- **Via meta-review**: The `review-lens` agent runs the Sonnet review, while Codex (`/codex`) and Gemini (`/gemini`) run in parallel with the same prompt. Each model stores findings in DB under label `sonnet`, `codex`, or `gemini`. The meta-review skill handles synthesis.
+See `references/review-lens-framework.md`. Lens: `integration-review`.
 
 ## References (on-demand)
 
@@ -180,4 +166,4 @@ User: After the last sprint, make sure nothing got left disconnected.
 
 ---
 
-Before completing, read and follow `../references/cross-cutting-rules.md`.
+Before completing, read and follow `../references/review-lens-framework.md` and `../references/cross-cutting-rules.md`.

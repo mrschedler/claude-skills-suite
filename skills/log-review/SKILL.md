@@ -18,26 +18,14 @@ routinely omits logging entirely — happy-path code with zero observability.
 
 ## Outputs
 
-- **Standalone mode**: Store findings in the artifact DB:
-  ```bash
-  source artifacts/db.sh
-  db_upsert 'log-review' 'findings' 'standalone' "$FINDINGS_CONTENT"
-  ```
-- **Multi-model mode** (called by meta-review): Store per-model findings:
-  - Sonnet: `db_upsert 'log-review' 'findings' 'sonnet' "$CONTENT"`
-  - Codex: `db_upsert 'log-review' 'findings' 'codex' "$CONTENT"`
+See `references/review-lens-framework.md` for the shared output pattern.
+Lens name for DB operations: `log-review`
 
 ## Instructions
 
 ### Fresh Findings Check
 
-Before running a new scan, check if fresh findings already exist:
-```bash
-source artifacts/db.sh
-AGE=$(db_age_hours 'log-review' 'findings' 'standalone')
-```
-If `$AGE` is non-empty and less than 24, report: "Found fresh log-review findings from $AGE hours ago. Reuse them? (y/n)"
-If the user says yes, read findings from DB. If no record exists or user says no, proceed with a fresh scan.
+See `references/review-lens-framework.md`. Lens: `log-review`.
 
 ### 1. Load Context
 
@@ -145,8 +133,7 @@ End with:
 
 ## Execution Mode
 
-- **Standalone**: Spawn the `review-lens` agent (`subagent_type: "review-lens"`) with this skill's lens instructions. Stores findings as `db_upsert 'log-review' 'findings' 'standalone'`.
-- **Via meta-review**: The `review-lens` agent runs the Sonnet review, while Codex runs in parallel. Each stores findings under label `sonnet` or `codex`. Meta-review handles synthesis.
+See `references/review-lens-framework.md`. Lens: `log-review`.
 
 ## Examples
 
@@ -172,4 +159,4 @@ User: We're moving to microservices. Is our logging ready?
 
 ---
 
-Before completing, read and follow `../references/cross-cutting-rules.md`.
+Before completing, read and follow `../references/review-lens-framework.md` and `../references/cross-cutting-rules.md`.

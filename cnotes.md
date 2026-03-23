@@ -6,6 +6,67 @@
 ## Notes (Newest First)
 
 ---CODEX---------------------
+note_id: CN-20260320-175159-CODEX
+timestamp_utc: 2026-03-20T17:51:59Z
+author: CODEX
+activity_type: CODE_WRITE
+work_scope: Harden Codex timeout handling after another live timeout failure
+files_touched: hooks/pre-commit-codex-lint.sh, cnotes.md
+files_reviewed: hooks/pre-commit-codex-lint.sh, skills/codex/SKILL.md
+summary: Updated the active pre-commit Codex wrapper to retry once on timeout instead of treating a single 30s timeout as the final result.
+details: |
+  - Replaced the one-shot `gtimeout 30 ... || echo CLEAN` path with a helper that runs Codex once at 30s and retries once at 60s if the first attempt exits 124.
+  - Preserved the hook's non-blocking behavior for Codex outages: if both attempts fail or Codex exits non-zero, the semantic pass is skipped and the commit is not blocked by the Codex stage alone.
+  - Left deterministic linters and secret scanning unchanged; only the Codex stage timeout handling was hardened.
+validation: `bash -n hooks/pre-commit-codex-lint.sh`
+risks_or_gaps: this hardens the repo-local pre-commit hook, not any external Claude wrapper that may still launch Codex with too-short timeouts or no retry path
+handoff_to: none
+next_actions: If the failing path was Claude's own worker wrapper rather than this hook, capture the exact spawned command and stderr so the same retry pattern can be applied there
+-------------------------------
+
+---CODEX---------------------
+note_id: CN-20260320-174453-CODEX
+timestamp_utc: 2026-03-20T17:44:53Z
+author: CODEX
+activity_type: CODE_WRITE
+work_scope: Exhaustively validate Gemini CLI subagent/headless behavior against the live local install and patch stale Gemini driver guidance
+files_touched: skills/gemini/SKILL.md, skills/project-questions/SKILL.md, skills/research-execute/SKILL.md, skills/release-prep/SKILL.md, skills/meta-review/SKILL.md, skills/meta-deep-research-execute/references/protocol-detail.md, skills/deep-research-skill-audit.md, README.md, cnotes.md
+files_reviewed: skills/gemini/SKILL.md, skills/project-questions/SKILL.md, skills/research-execute/SKILL.md, skills/release-prep/SKILL.md, skills/meta-review/SKILL.md, skills/meta-deep-research-execute/references/protocol-detail.md, skills/deep-research-skill-audit.md, README.md, coterie.md, features.md
+summary: Live Gemini 0.33.0 testing showed the driver skill was materially stale. I rewrote the Gemini guidance to match the current CLI, updated dependent skills to stop calling the removed `--agent` flag, and corrected the README install package.
+details: |
+  - Verified the installed CLI is Gemini 0.33.0 and that `gemini --help` exposes `-o/--output-format`, `-y/--yolo`, `skills`, `hooks`, and `mcp`, but not `--agent`.
+  - Reproduced the current failure mode for the old driver: `--agent codebase_investigator` exits with `Unknown argument: agent`, and the old hardcoded path `/Users/trevorbyrum/.npm-global/bin/gemini` does not exist on this machine.
+  - Confirmed current subagent forcing uses `@subagent` prompt syntax. Built-in subagents defaulted to preview models that hit `429 MODEL_CAPACITY_EXHAUSTED` in headless mode here; an isolated `.gemini/settings.json` override restored successful `@codebase_investigator` execution.
+  - Confirmed plain headless automation is reliable with pinned `-m gemini-2.5-flash-lite` plus JSON output, file-context prompts, and stdin piping. Confirmed `GOOGLE_CLOUD_PROJECT` still breaks auth flow here and that stderr always carries startup noise.
+  - Updated consuming skills and the deep-research protocol reference to stop instructing `--agent generalist` / `--agent codebase_investigator`, and corrected the README install package to `@google/gemini-cli`.
+validation: `gemini --version`; `gemini --help`; `gemini skills --help`; `gemini hooks --help`; `gemini mcp --help`; live prompt tests for `-o json`, `--output-format json`, `-y`, `--yolo`, stdin piping, `@codebase_investigator`, custom local subagent, `--allowed-tools`, model pinning, and negative tests for `--agent` plus the stale hardcoded path; `git diff --check`
+risks_or_gaps: `project-context.md` is missing, so compliance checks were partial; built-in Gemini subagents remain capacity-sensitive on this machine unless callers pin stable models or override agent model settings
+handoff_to: none
+next_actions: If Claude still drives Gemini through stale syntax elsewhere, search for `/gemini` consumers outside the active skill files and convert them to the driver’s JSON-first templates
+-------------------------------
+
+---CODEX---------------------
+note_id: CN-20260320-155555-CODEX
+timestamp_utc: 2026-03-20T15:55:55Z
+author: CODEX
+activity_type: CODE_WRITE
+work_scope: Exhaustively validate the Codex driver against the live local CLI and fix stale invocation paths
+files_touched: skills/codex/SKILL.md, skill-suite-build-spec.md, skills/meta-deep-research-execute/references/protocol-detail.md, hooks/pre-commit-codex-lint.sh, cnotes.md
+files_reviewed: skills/codex/SKILL.md, skill-suite-build-spec.md, skills/meta-deep-research-execute/references/protocol-detail.md, hooks/pre-commit-codex-lint.sh, ~/.codex/config.toml
+summary: Live Codex testing showed the documented driver was wrong in two critical ways on this machine: NVM discovery missed the symlinked install, and the MCP disable examples used invalid server keys. Patched the docs and the active pre-commit hook to match the working invocation shape.
+details: |
+  - Reproduced the path-resolution failure: `command -v codex` returns an alias string in login zsh, and the NVM fallback `find ... -type f` misses the real `bin/codex` because it is a symlink. Updated the driver/spec/reference snippets to prefer `whence -p` in zsh, `type -P` in bash, then an NVM search that allows `-type l`.
+  - Reproduced the MCP failure: the old overrides `mcp_servers.homelab_gateway.enabled=false` and `mcp_servers.ssh_manager.enabled=false` fail on the current `~/.codex/config.toml` with `Error loading config.toml: invalid transport`. Updated the examples and hook to the actual configured server keys: `homelab-gateway`, `ssh-tower`, and `github`.
+  - Verified that disabling only `homelab-gateway` and `ssh-tower` still starts the GitHub MCP server, so the no-MCP examples now disable all three configured servers.
+  - Verified runtime behavior for the driver templates: read-only review, high-reasoning review, stdin prompt, `-o` output capture, `--output-schema`, `--json` JSONL output, `--add-dir`, workspace-write file creation, non-repo failure without `--skip-git-repo-check`, and the `codex exec -a never` parse failure.
+  - Updated the sandbox guidance to stop claiming a universal default. On this machine, trusted repo runs default to `read-only`, while a non-repo `--skip-git-repo-check` run came up as `workspace-write`; callers must pass sandbox mode explicitly.
+validation: `codex --version`; `codex exec --help`; `bash -n hooks/pre-commit-codex-lint.sh`; live smoke tests for read-only, high reasoning, stdin, `-o`, `--output-schema`, `--json`, `--add-dir`, and workspace-write; negative tests for stale MCP keys, omitted `--skip-git-repo-check`, and `codex exec -a never`
+risks_or_gaps: older historical notes and research artifacts still describe superseded Codex behavior; they are not active logic, but they can confuse future maintenance if treated as source of truth
+handoff_to: none
+next_actions: If Claude still fails to launch Codex after this, capture the exact spawned command and stderr from Claude's wrapper path; the repo-local driver and active pre-commit hook now match the live CLI on this machine
+-------------------------------
+
+---CODEX---------------------
 note_id: CN-20260313-065430-CODEX
 timestamp_utc: 2026-03-13T06:54:30Z
 author: CODEX

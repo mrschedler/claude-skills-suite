@@ -21,26 +21,14 @@ user sees.
 
 ## Outputs
 
-- **Standalone mode**: Store findings in the artifact DB:
-  ```bash
-  source artifacts/db.sh
-  db_upsert 'ui-review' 'findings' 'standalone' "$FINDINGS_CONTENT"
-  ```
-- **Multi-model mode** (called by meta-review): Store per-model findings:
-  - Sonnet: `db_upsert 'ui-review' 'findings' 'sonnet' "$CONTENT"`
-  - Codex: `db_upsert 'ui-review' 'findings' 'codex' "$CONTENT"`
+See `references/review-lens-framework.md` for the shared output pattern.
+Lens name for DB operations: `ui-review`
 
 ## Instructions
 
 ### Fresh Findings Check
 
-Before running a new scan, check if fresh findings already exist:
-```bash
-source artifacts/db.sh
-AGE=$(db_age_hours 'ui-review' 'findings' 'standalone')
-```
-If `$AGE` is non-empty and less than 24, report: "Found fresh ui-review findings from $AGE hours ago. Reuse them? (y/n)"
-If the user says yes, read findings from DB. If no record exists or user says no, proceed with a fresh scan.
+See `references/review-lens-framework.md`. Lens: `ui-review`.
 
 ### Phase 1: Token Compliance Audit
 
@@ -156,8 +144,7 @@ End with:
 
 ## Execution Mode
 
-- **Standalone**: Spawn the `review-lens` agent (`subagent_type: "review-lens"`) with this skill's lens instructions and input files. Stores findings in DB as `db_upsert 'ui-review' 'findings' 'standalone'`.
-- **Via meta-review**: The `review-lens` agent runs the Sonnet review, while Codex (`/codex`) runs in parallel with the same prompt. Each model stores findings in DB under label `sonnet` or `codex`. The meta-review skill handles synthesis.
+See `references/review-lens-framework.md`. Lens: `ui-review`.
 
 ## References (on-demand)
 
@@ -197,4 +184,4 @@ User: Run ui-review after the UI sprint.
 
 ---
 
-Before completing, read and follow `../../references/cross-cutting-rules.md`.
+Before completing, read and follow `../../references/review-lens-framework.md` and `../../references/cross-cutting-rules.md`.

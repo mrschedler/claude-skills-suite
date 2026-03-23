@@ -23,27 +23,14 @@ to run the app.
 
 ## Outputs
 
-- **Standalone mode**: Store findings in the artifact DB:
-  ```bash
-  source artifacts/db.sh
-  db_upsert 'perf-review' 'findings' 'standalone' "$FINDINGS_CONTENT"
-  ```
-- **Multi-model mode** (called by meta-review): Store per-model findings:
-  - Sonnet: `db_upsert 'perf-review' 'findings' 'sonnet' "$CONTENT"`
-  - Codex: `db_upsert 'perf-review' 'findings' 'codex' "$CONTENT"`
-  - Gemini: `db_upsert 'perf-review' 'findings' 'gemini' "$CONTENT"`
+See `references/review-lens-framework.md` for the shared output pattern.
+Lens name for DB operations: `perf-review`
 
 ## Instructions
 
 ### Fresh Findings Check
 
-Before running a new scan, check if fresh findings already exist:
-```bash
-source artifacts/db.sh
-AGE=$(db_age_hours 'perf-review' 'findings' 'standalone')
-```
-If `$AGE` is non-empty and less than 24, report: "Found fresh perf-review findings from $AGE hours ago. Reuse them? (y/n)"
-If the user says yes, read findings from DB. If no record exists or user says no, proceed with a fresh scan.
+See `references/review-lens-framework.md`. Lens: `perf-review`.
 
 ### 1. Load Context
 
@@ -194,8 +181,7 @@ End with:
 
 ## Execution Mode
 
-- **Standalone**: Spawn the `review-lens` agent (`subagent_type: "review-lens"`) with this skill's lens instructions and input files. Stores findings as `db_upsert 'perf-review' 'findings' 'standalone'`.
-- **Via meta-review**: The `review-lens` agent runs Sonnet review, while Codex (`/codex`) and Gemini (`/gemini`) run in parallel with the same prompt. Each stores findings under label `sonnet`/`codex`/`gemini`. The meta-review skill handles synthesis.
+See `references/review-lens-framework.md`. Lens: `perf-review`.
 
 ## References (on-demand)
 
@@ -228,4 +214,4 @@ User: We're about to scale from 100 to 10,000 users. What will break?
 
 ---
 
-Before completing, read and follow `../references/cross-cutting-rules.md`.
+Before completing, read and follow `../references/review-lens-framework.md` and `../references/cross-cutting-rules.md`.

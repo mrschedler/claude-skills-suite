@@ -11,10 +11,7 @@ Cold-start or warm-restart into an existing project. Ensures the project has
 the standard structure, a repo, all skill suite files, up-to-date docs, and
 a current build plan.
 
-**Context-window strategy**: Non-interactive steps are delegated to subagents
-to keep the main thread lean. Interactive steps (interviews, user approvals)
-stay inline. Each subagent reads its own SKILL.md — never load atomic skill
-files into the main context.
+**Context-window strategy**: See `references/meta-skill-guards.md`.
 
 ## Chain
 
@@ -185,11 +182,7 @@ Start from wherever the project currently is — not from zero.
 
 ### Timeout Guards
 
-- Set a mental time limit of 5 minutes per phase. If a phase has not produced output in 5 minutes, check if the subprocess is still running.
-- For Gemini CLI calls: always use `$GTIMEOUT` with skill-appropriate values (120s for read-only analysis, 180s for larger prompts). If it times out, skip and note "Gemini timed out — skipping."
-- For Codex CLI calls: always use `$GTIMEOUT` with skill-appropriate values (120s for read-only review, 180s for generation or large prompts). Same fallback.
-- If a subagent has been running for more than 10 minutes with no output, consider it stalled and move on.
-- Report any timeouts in the completion summary so the user knows what was skipped.
+See `references/meta-skill-guards.md` for shared timeout and stall detection rules.
 
 ## Examples
 

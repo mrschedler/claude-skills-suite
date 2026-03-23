@@ -75,7 +75,10 @@ Skill description budget is **2% of context window** with 16K character fallback
 | **drift-review** | Fact-check tech decisions ("we chose X because Y" — is Y still true?) |
 | **skill-doctor** | Research latest Gemini/Codex CLI updates to check if templates outdated |
 
-**Pattern**: Use `--agent generalist` for research, `--agent codebase_investigator` for code review. Always absolute paths.
+**Pattern**: Use plain `-p` prompts for research, use `@file` context for code
+review, and only force `@codebase_investigator` when the current `/gemini`
+driver confirms the environment supports it. Always resolve the absolute path
+dynamically.
 
 ---
 

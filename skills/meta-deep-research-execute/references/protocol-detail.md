@@ -81,10 +81,16 @@ artifact DB per connector (written by the research-connector agent).
 **Hard limit: 4 concurrent Codex sessions.** Reserve 1 slot for Phase 2.5/3.
 
 ```bash
-CODEX=$(command -v codex 2>/dev/null)
+if command -v whence >/dev/null 2>&1; then
+  CODEX=$(whence -p codex 2>/dev/null)
+elif type -P codex >/dev/null 2>&1; then
+  CODEX=$(type -P codex 2>/dev/null)
+else
+  CODEX=$(command -v codex 2>/dev/null)
+fi
 test -x "$CODEX" || CODEX="/opt/homebrew/bin/codex"
 if [ ! -x "$CODEX" ] && [ -d "$HOME/.nvm/versions/node" ]; then
-  CODEX=$(find "$HOME/.nvm/versions/node" -path '*/bin/codex' -type f 2>/dev/null | sort -V | tail -1)
+  CODEX=$(find "$HOME/.nvm/versions/node" -path '*/bin/codex' \( -type f -o -type l \) 2>/dev/null | sort -V | tail -1)
 fi
 export PATH="$(dirname "$CODEX"):$PATH"
 GTIMEOUT="/opt/homebrew/bin/gtimeout"; test -x "$GTIMEOUT" || GTIMEOUT="/opt/homebrew/bin/timeout"
@@ -152,9 +158,17 @@ echo $! >> /tmp/codex-slots.pid
 with Track D — never overlap with Phase 2.5 or Phase 3 Gemini calls.
 
 ```bash
-GEMINI="/Users/trevorbyrum/.npm-global/bin/gemini"
+GEMINI="$(whence -p gemini 2>/dev/null)"
+[ -n "$GEMINI" ] || GEMINI="$(type -P gemini 2>/dev/null)"
+if [ -z "$GEMINI" ] && [ -d "$HOME/.nvm/versions/node" ]; then
+  GEMINI="$(find "$HOME/.nvm/versions/node" -path '*/bin/gemini' \( -type f -o -type l \) -print 2>/dev/null | sort -V | tail -n 1)"
+fi
 test -x "$GEMINI" || GEMINI="/opt/homebrew/bin/gemini"
 test -x "$GEMINI" || { echo "Gemini unavailable — using WebSearch fallback"; }
+
+GTIMEOUT="/opt/homebrew/bin/gtimeout"
+test -x "$GTIMEOUT" || GTIMEOUT="$(command -v gtimeout 2>/dev/null || command -v timeout 2>/dev/null)"
+test -x "$GTIMEOUT" || { echo "GNU timeout unavailable — using WebSearch fallback"; }
 ```
 
 **Gemini 1: Primary research + case studies** — broad, Google Search grounded.
@@ -162,7 +176,9 @@ Combines primary research and real-world case study collection into one worker.
 
 ```bash
 unset DEBUG 2>/dev/null
-timeout 180 "$GEMINI" --agent generalist -p \
+unset GOOGLE_CLOUD_PROJECT 2>/dev/null
+unset CI 2>/dev/null
+$GTIMEOUT 180 "$GEMINI" -m gemini-2.5-flash-lite -o json -p \
   "Research thoroughly using web search. Find recent (2025-2026) sources,
    practitioner posts, conference talks, case studies. Prioritize
    first-hand experience over theory.
@@ -184,7 +200,7 @@ timeout 180 "$GEMINI" --agent generalist -p \
    - Web searches executed: [N]
    - Results scanned: [N]
    - Sources cited: [N]" \
-  2>/dev/null > /tmp/gemini-primary.md
+  2>/dev/null | jq -r '.response // empty' > /tmp/gemini-primary.md
 source artifacts/db.sh && db_upsert 'research-connector' 'findings' '{NNN}D/{descriptive-name}' "$(cat /tmp/gemini-primary.md)" && rm /tmp/gemini-primary.md
 ```
 
@@ -192,7 +208,9 @@ source artifacts/db.sh && db_upsert 'research-connector' 'findings' '{NNN}D/{des
 
 ```bash
 unset DEBUG 2>/dev/null
-timeout 180 "$GEMINI" --agent generalist -p \
+unset GOOGLE_CLOUD_PROJECT 2>/dev/null
+unset CI 2>/dev/null
+$GTIMEOUT 180 "$GEMINI" -m gemini-2.5-flash-lite -o json -p \
   "Find CONTRADICTING evidence and dissenting opinions on:
    [LIST WITH EXPECTED MAINSTREAM ANSWERS]
 
@@ -200,7 +218,7 @@ timeout 180 "$GEMINI" --agent generalist -p \
    unexpected benchmarks, migration-away stories.
 
    Include Source Tally at end (searches executed, results scanned, cited)." \
-  2>/dev/null > /tmp/gemini-dissent.md
+  2>/dev/null | jq -r '.response // empty' > /tmp/gemini-dissent.md
 source artifacts/db.sh && db_upsert 'research-connector' 'findings' '{NNN}D/{descriptive-name}-dissent' "$(cat /tmp/gemini-dissent.md)" && rm /tmp/gemini-dissent.md
 ```
 
@@ -302,7 +320,9 @@ Format:
 ```bash
 # Wait for Track D Gemini workers to finish before starting
 unset DEBUG 2>/dev/null
-timeout 180 "$GEMINI" --agent generalist -p \
+unset GOOGLE_CLOUD_PROJECT 2>/dev/null
+unset CI 2>/dev/null
+$GTIMEOUT 180 "$GEMINI" -m gemini-2.5-flash-lite -o json -p \
   "You are a research coverage auditor with web access. This is a MANDATORY
    expansion phase — your job is to find what's missing, not to confirm
    things are fine.
@@ -325,7 +345,7 @@ timeout 180 "$GEMINI" --agent generalist -p \
    ## Adjacent Topics Worth Researching
    ## Thin Areas in Current Findings
    ## Source Gaps and Suggested Queries" \
-  2>/dev/null > /tmp/coverage-review-gemini.md
+  2>/dev/null | jq -r '.response // empty' > /tmp/coverage-review-gemini.md
 source artifacts/db.sh && db_upsert 'meta-deep-research-execute' 'coverage-review' '{NNN}D/gemini' "$(cat /tmp/coverage-review-gemini.md)" && rm /tmp/coverage-review-gemini.md
 ```
 
@@ -481,13 +501,15 @@ source artifacts/db.sh && db_upsert 'meta-deep-research-execute' 'debate' '{NNN}
 **Gemini Position:**
 ```bash
 unset DEBUG 2>/dev/null
-timeout 180 "$GEMINI" --agent generalist -p \
+unset GOOGLE_CLOUD_PROJECT 2>/dev/null
+unset CI 2>/dev/null
+$GTIMEOUT 180 "$GEMINI" -m gemini-2.5-flash-lite -o json -p \
   "Read these findings and compile a position paper.
    Per sub-question: claim, evidence (URLs), confidence, gaps.
    Where contradiction research disagrees with primary, present BOTH.
 
    [Pass compressed key findings from DB]" \
-  2>/dev/null > /tmp/debate-position-gemini.md
+  2>/dev/null | jq -r '.response // empty' > /tmp/debate-position-gemini.md
 source artifacts/db.sh && db_upsert 'meta-deep-research-execute' 'debate' '{NNN}D/position-gemini' "$(cat /tmp/debate-position-gemini.md)" && rm /tmp/debate-position-gemini.md
 ```
 
@@ -526,7 +548,9 @@ unset DEBUG 2>/dev/null
 source artifacts/db.sh
 CLAUDE_POS=$(db_read 'meta-deep-research-execute' 'debate' '{NNN}D/position-claude')
 CODEX_POS=$(db_read 'meta-deep-research-execute' 'debate' '{NNN}D/position-codex')
-timeout 180 "$GEMINI" --agent generalist -p \
+unset GOOGLE_CLOUD_PROJECT 2>/dev/null
+unset CI 2>/dev/null
+$GTIMEOUT 180 "$GEMINI" -m gemini-2.5-flash-lite -o json -p \
   "You are a fact-checker with web access. Verify or challenge:
    Claude: $CLAUDE_POS
    Codex: $CODEX_POS
@@ -534,7 +558,7 @@ timeout 180 "$GEMINI" --agent generalist -p \
    Per major claim: search the web, mark as CONFIRMED / DISPUTED /
    UNVERIFIABLE with sources. Focus on recency — other models may
    have outdated training data." \
-  2>/dev/null > /tmp/debate-challenge-gemini.md
+  2>/dev/null | jq -r '.response // empty' > /tmp/debate-challenge-gemini.md
 db_upsert 'meta-deep-research-execute' 'debate' '{NNN}D/challenge-gemini' "$(cat /tmp/debate-challenge-gemini.md)" && rm /tmp/debate-challenge-gemini.md
 ```
 
@@ -573,14 +597,16 @@ source artifacts/db.sh
 GEMINI_POS=$(db_read 'meta-deep-research-execute' 'debate' '{NNN}D/position-gemini')
 CLAUDE_CHAL=$(db_read 'meta-deep-research-execute' 'debate' '{NNN}D/challenge-claude')
 CODEX_CHAL=$(db_read 'meta-deep-research-execute' 'debate' '{NNN}D/challenge-codex')
-timeout 180 "$GEMINI" --agent generalist -p \
+unset GOOGLE_CLOUD_PROJECT 2>/dev/null
+unset CI 2>/dev/null
+$GTIMEOUT 180 "$GEMINI" -m gemini-2.5-flash-lite -o json -p \
   "Read challenges against your position. Use fresh web searches for
    additional evidence. Respond per claim: CONCEDE / REBUT / ESCALATE.
 
    Your position: $GEMINI_POS
    Claude's challenges: [extract Gemini-targeted from: $CLAUDE_CHAL]
    Codex's challenges: [extract Gemini-targeted from: $CODEX_CHAL]" \
-  2>/dev/null > /tmp/debate-response-gemini.md
+  2>/dev/null | jq -r '.response // empty' > /tmp/debate-response-gemini.md
 db_upsert 'meta-deep-research-execute' 'debate' '{NNN}D/response-gemini' "$(cat /tmp/debate-response-gemini.md)" && rm /tmp/debate-response-gemini.md
 ```
 

@@ -534,6 +534,16 @@ When all waves are done (the last wave's gate was approved):
    generated code almost never includes adequate logging — this catches it
    before the first production incident.
 
+5. **Homelab Tools memory sync (MANDATORY)**: Store the execution summary
+   in Qdrant so home Claude stays current. Per cross-cutting rule 7:
+   ```
+   mcp__claude_ai_Homelab_Tools__memory_call with tool: 'store_memory'
+   Content: execution summary (waves, units completed/failed/blocked,
+            retry counts, confidence scores, new work discovered)
+   Tags: meta-execute, execution-summary, {project-name}
+   ```
+   Search first to avoid duplicating a recent entry for this project.
+
 Note: each wave was already committed & pushed via `/github-sync` at its
 gate, and each wave already received a `/meta-review`. No additional
 push or review is needed at this stage unless the user requests one.

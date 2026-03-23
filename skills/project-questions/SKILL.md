@@ -32,7 +32,9 @@ until the project is well-defined enough to plan against.
 Before interviewing the user, ground yourself in the project's domain:
 
 1. Load `/gemini` for invocation syntax.
-2. If available, run domain research. Key params: `--agent generalist`, 120s timeout.
+2. If available, run domain research using the `/gemini` Research / Analysis
+   template with a 120s timeout. Do **not** force `@generalist_agent` in
+   automation.
    Prompt: `"Research the domain of [PROJECT_DESCRIPTION]. Cover: key terminology,
    common patterns, existing solutions, market landscape, and common pitfalls.
    Be specific and practical — this will inform a project interview."`.

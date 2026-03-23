@@ -558,16 +558,17 @@ The cross-cutting rules are:
 - **Outputs**: Codex CLI output written to specified file
 - **Exit condition**: Output file written, or fallback noted
 - **Subagent**: No (this IS the external call)
-- **Availability check**: Resolve dynamically via `command -v`, then Homebrew, then an NVM filesystem search without shell globs. Prepend the resolved bin dir to `PATH` only when needed for NVM-backed installs:
-  `CODEX=$(command -v codex 2>/dev/null); test -x "$CODEX" || CODEX="/opt/homebrew/bin/codex"; if [ ! -x "$CODEX" ] && [ -d "$HOME/.nvm/versions/node" ]; then CODEX=$(find "$HOME/.nvm/versions/node" -path '*/bin/codex' -type f 2>/dev/null | sort -V | tail -1); fi; test -x "$CODEX" && export PATH="$(dirname "$CODEX"):$PATH"; test -x "$CODEX"`
+- **Availability check**: Resolve dynamically via `whence -p` in zsh or `type -P` in bash, then Homebrew, then an NVM filesystem search that allows symlinks. Prepend the resolved bin dir to `PATH` only when needed for NVM-backed installs:
+  `if command -v whence >/dev/null 2>&1; then CODEX=$(whence -p codex 2>/dev/null); elif type -P codex >/dev/null 2>&1; then CODEX=$(type -P codex 2>/dev/null); else CODEX=$(command -v codex 2>/dev/null); fi; test -x "$CODEX" || CODEX="/opt/homebrew/bin/codex"; if [ ! -x "$CODEX" ] && [ -d "$HOME/.nvm/versions/node" ]; then CODEX=$(find "$HOME/.nvm/versions/node" -path '*/bin/codex' \( -type f -o -type l \) 2>/dev/null | sort -V | tail -1); fi; test -x "$CODEX" && export PATH="$(dirname "$CODEX"):$PATH"; test -x "$CODEX"`
 - **Concurrency limit**: 5 simultaneous `codex exec` processes. The orchestrating agent must track active slots and queue excess work. Track via `/tmp/codex-slots.pid` — before launching, count active PIDs in the file (`ps -p` to verify still running, prune dead entries). If 5 active, queue and retry after the next slot frees. This is best-effort — the file is a coordination hint, not a hard lock.
 - **Task-type templates**:
 
   **Code review (read-only, safest):**
   ```bash
   RESULT=$($GTIMEOUT 120 "$CODEX" exec --ephemeral --skip-git-repo-check \
-    -c 'mcp_servers.homelab_gateway.enabled=false' \
-    -c 'mcp_servers.ssh_manager.enabled=false' \
+    -c 'mcp_servers.homelab-gateway.enabled=false' \
+    -c 'mcp_servers.ssh-tower.enabled=false' \
+    -c 'mcp_servers.github.enabled=false' \
     --sandbox read-only -C <project-root> \
     "PROMPT" 2>/dev/null)
   echo "$RESULT" > OUTPUT_FILE
@@ -576,8 +577,9 @@ The cross-cutting rules are:
   **Code review with high reasoning:**
   ```bash
   RESULT=$($GTIMEOUT 120 "$CODEX" exec --ephemeral --skip-git-repo-check \
-    -c 'mcp_servers.homelab_gateway.enabled=false' \
-    -c 'mcp_servers.ssh_manager.enabled=false' \
+    -c 'mcp_servers.homelab-gateway.enabled=false' \
+    -c 'mcp_servers.ssh-tower.enabled=false' \
+    -c 'mcp_servers.github.enabled=false' \
     --sandbox read-only -C <project-root> \
     -c model_reasoning_effort="high" \
     "PROMPT" 2>/dev/null)
@@ -587,8 +589,9 @@ The cross-cutting rules are:
   **Code generation / file writes (implementation work):**
   ```bash
   $GTIMEOUT 180 "$CODEX" exec --ephemeral --skip-git-repo-check \
-    -c 'mcp_servers.homelab_gateway.enabled=false' \
-    -c 'mcp_servers.ssh_manager.enabled=false' \
+    -c 'mcp_servers.homelab-gateway.enabled=false' \
+    -c 'mcp_servers.ssh-tower.enabled=false' \
+    -c 'mcp_servers.github.enabled=false' \
     --sandbox workspace-write -C /path/to/project \
     "PROMPT" 2>/dev/null
   ```
@@ -620,9 +623,9 @@ The cross-cutting rules are:
 
 - **Critical gotchas**:
   - ALWAYS wrap with `$GTIMEOUT` — hangs indefinitely if out of credits or the network stalls
-  - Prefer `command -v codex` first; if that misses, fall back to `/opt/homebrew/bin/codex`, then search NVM without shell globs
+  - Prefer `whence -p codex` in zsh shells or `type -P codex` in bash; `command -v codex` can return alias text instead of an executable path. If that misses, fall back to `/opt/homebrew/bin/codex`, then search NVM and allow symlinked `bin/codex`
   - `-p` is `--profile`, NOT prompt. The prompt is a positional final argument.
-  - Default sandbox is READ-ONLY in exec mode — use `--sandbox workspace-write` for file writes
+  - Do not rely on the default sandbox. Pass `--sandbox read-only` for review tasks and `--sandbox workspace-write` for file writes
   - Network is blocked by default in `workspace-write` sandbox
   - Use `--skip-git-repo-check` on all headless invocations. It is harmless in repos and required outside them.
   - `--ephemeral` for one-shot tasks (don't persist session state)
@@ -658,7 +661,7 @@ The cross-cutting rules are:
   4. All templates exist
   5. references/cross-cutting-rules.md exists
   6. `which gemini` — available or not
-  7. Resolve Codex dynamically (`command -v`, then `/opt/homebrew/bin/codex`, then NVM filesystem search) — available or not
+  7. Resolve Codex dynamically (`whence -p` in zsh or `type -P` in bash, then `/opt/homebrew/bin/codex`, then NVM filesystem search with symlink support) — available or not
   8. Hook configuration in settings.json points to correct paths
   9. Gemini CLI responds to `gemini --version`
   10. Resolved Codex CLI responds to `"$CODEX" --version`

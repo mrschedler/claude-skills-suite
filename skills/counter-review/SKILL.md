@@ -37,29 +37,14 @@ will think the code is fine. Counter-review breaks that loop by attacking from
 
 ## Outputs
 
-- **Standalone mode**: Store findings in the artifact DB:
-  ```bash
-  source artifacts/db.sh
-  db_upsert 'counter-review' 'findings' 'standalone' "$FINDINGS_CONTENT"
-  ```
-- **Multi-model mode** (called by meta-review): Store per-model findings in the artifact DB:
-  - Sonnet: `db_upsert 'counter-review' 'findings' 'sonnet' "$CONTENT"`
-  - Codex: `db_upsert 'counter-review' 'findings' 'codex' "$CONTENT"`
-  - Gemini: `db_upsert 'counter-review' 'findings' 'gemini' "$CONTENT"`
+See `references/review-lens-framework.md` for the shared output pattern.
+Lens name for DB operations: `counter-review`
 
 ## Instructions
 
 ### Fresh Findings Check
 
-Before running a new scan, check if fresh findings already exist:
-```bash
-source artifacts/db.sh
-AGE=$(db_age_hours 'counter-review' 'findings' 'standalone')
-# For multi-model: db_age_hours 'counter-review' 'findings' 'sonnet'
-```
-If `$AGE` is non-empty and less than 24, report: "Found fresh counter-review findings from $AGE hours ago. Reuse them? (y/n)"
-If the user says yes, read findings from DB: `db_read 'counter-review' 'findings' 'standalone'` (or `sonnet`/`codex`/`gemini` as appropriate).
-If no record exists or user says no, proceed with a fresh scan.
+See `references/review-lens-framework.md`. Lens: `counter-review`.
 
 ### 1. Load Context
 
@@ -228,8 +213,7 @@ Read these files only when needed for the relevant section:
 
 ## Execution Mode
 
-- **Standalone**: Spawn the `review-lens` agent (`subagent_type: "review-lens"`) with this skill's lens instructions and input files. Stores findings in DB as `db_upsert 'counter-review' 'findings' 'standalone'`.
-- **Via meta-review**: The `review-lens` agent runs the Sonnet review, while Codex (`/codex`) and Gemini (`/gemini`) run in parallel with the same prompt. Each model stores findings in DB under label `sonnet`, `codex`, or `gemini`. The meta-review skill handles synthesis.
+See `references/review-lens-framework.md`. Lens: `counter-review`.
 
 ## Examples
 
@@ -265,4 +249,4 @@ User: An AI agent handles user requests in this app. Poke holes in it.
 
 ---
 
-Before completing, read and follow `../references/cross-cutting-rules.md`.
+Before completing, read and follow `../references/review-lens-framework.md` and `../references/cross-cutting-rules.md`.
