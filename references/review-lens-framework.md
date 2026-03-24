@@ -1,51 +1,28 @@
 # Review Lens Framework
 
-> Shared boilerplate for all code-analysis review lenses. Each lens SKILL.md
+> Shared patterns for all code-analysis review lenses. Each lens SKILL.md
 > references this file instead of duplicating the patterns below.
 
 ## Outputs
 
-Every review lens stores findings in the artifact DB using the same pattern.
-Replace `{LENS}` with the lens name (e.g., `security-review`, `perf-review`).
+Every review lens produces structured findings. How they're persisted depends
+on the executing agent's capabilities:
 
-- **Standalone mode**: Store findings in the artifact DB:
-  ```bash
-  source artifacts/db.sh
-  db_upsert '{LENS}' 'findings' 'standalone' "$FINDINGS_CONTENT"
-  ```
-- **Multi-model mode** (called by meta-review): Store per-model findings:
-  - Sonnet: `db_upsert '{LENS}' 'findings' 'sonnet' "$CONTENT"`
-  - Codex: `db_upsert '{LENS}' 'findings' 'codex' "$CONTENT"`
-  - Gemini: `db_upsert '{LENS}' 'findings' 'gemini' "$CONTENT"`
-
-Not all lenses use all 3 models. The meta-review skill determines which
-models run for each lens. The skill only writes to slots it was assigned.
+- **Agents with MCP access**: Store findings via `mcp__gateway__memory_call` > `store`
+  with tags: `{lens-name}`, `review`, `{project-name}`.
+- **Agents without MCP access**: Present findings in conversation output.
+  The user or orchestrating agent captures them.
+- **Either way**: Findings are presented to the user as structured markdown.
 
 ## Fresh Findings Check
 
-Before running a new scan, check for fresh results:
+Before running a new scan, check if recent findings exist:
 
-```bash
-source artifacts/db.sh
-AGE=$(db_age_hours '{LENS}' 'findings' 'standalone')
-```
+- **With MCP**: Search memory for `{lens-name}` + `{project-name}`. If results
+  are <24 hours old, ask: "Found recent {lens} findings. Reuse them? (y/n)"
+- **Without MCP**: Ask the user if they've recently run this review.
 
-If `$AGE` is non-empty and less than 24:
-- Report: "Found fresh {LENS} findings from $AGE hours ago. Reuse them? (y/n)"
-- If yes: read from DB with `db_read '{LENS}' 'findings' 'standalone'`
-- If no: proceed with a fresh scan
-
-For multi-model mode, check the relevant model label instead of `standalone`.
-
-## Execution Mode
-
-- **Standalone**: Spawn the `review-lens` agent (`subagent_type: "review-lens"`)
-  with this skill's lens instructions and input files. Store findings as
-  `db_upsert '{LENS}' 'findings' 'standalone'`.
-- **Via meta-review**: The `review-lens` agent runs the Sonnet review, while
-  Codex (`/codex`) and/or Gemini (`/gemini`) run in parallel with the same
-  prompt. Each model stores findings under its own label (`sonnet`, `codex`,
-  `gemini`). The meta-review skill handles synthesis.
+If reusing, present the cached findings. If not, proceed with a fresh scan.
 
 ## Finding Format
 
@@ -57,8 +34,18 @@ Each finding must include at minimum:
 - **Problem**: what's wrong
 - **Recommendation**: how to fix it
 
-Individual lenses add domain-specific fields (e.g., CWE for security, Package
-for dep-audit, Screenshot for browser-review).
+Individual lenses add domain-specific fields (e.g., CWE for security,
+category for completeness, coverage data for tests).
+
+## Execution
+
+- **Standalone**: The skill is invoked directly. One pass, findings produced.
+- **Via meta-review**: Multiple review lenses run in parallel as independent
+  tasks. The meta-review orchestrator synthesizes findings across lenses.
+  Each lens runs independently — no dependency between lenses.
+
+The executing agent decides how to parallelize (subagents, CLI tools,
+sequential execution). The skill describes what to check, not how to run it.
 
 ## Cross-Cutting Rules
 

@@ -1,76 +1,35 @@
 # Cross-Cutting Rules
 
-These rules apply to every skill in the suite. Every atomic SKILL.md must follow them before completing.
+These rules apply to every skill in this suite. Every SKILL.md must follow them.
 
 ## Rules
 
-1. **Follow coterie.md** — Check and respect coterie rules in the project root. If `coterie.md` does not exist, create it from the coterie template before proceeding.
+1. **Read GROUNDING.md first** — If a project has a GROUNDING.md, read it before doing anything. It tells you why the project exists, what decisions were made, and what not to do. If working within this skills repo itself, read the repo-level GROUNDING.md.
 
-2. **Log to cnotes.md** — Notable decisions, context changes, and rationale. If `cnotes.md` does not exist, create it with the header `# Collaboration Notes` and `## Notes (Newest First)` before logging. This is also enforced by the Stop hook, but skills should do this proactively.
+2. **No project litter** — Skills must NOT create framework-specific files (coterie.md, cnotes.md, etc.) in target projects. The only project files skills may create are ones explicitly described in the skill's Outputs section and confirmed by the user.
 
-3. **Note todo/feature changes** — If you discover new action items or feature changes, mention them in your response so the user can run `/todo-features` if needed. Do NOT auto-invoke todo-features or update those files directly.
+3. **Self-sufficient execution** — Every skill must work with whatever agent is running it. Skills describe WHAT to do, not which model to use. If a skill benefits from parallel sub-tasks (e.g., multiple review lenses), describe the tasks — the executing agent decides whether to use subagents, CLI tools, or run them sequentially.
 
-4. *(Merged into rule 3 above)*
+4. **External CLI gating** — Any skill that can leverage an external CLI (Codex, Gemini, Vibe, Cursor, Copilot, etc.) must: (a) check availability before invoking, (b) provide a self-contained fallback that any capable agent can execute directly, and (c) never require a specific CLI to function.
 
-5. **CLI concurrency limits (MANDATORY)** — Never exceed these simultaneous process counts:
-   - **Codex**: max **5** concurrent `codex exec` processes
-   - **Vibe (Mistral)**: max **3** concurrent `vibe` processes
-   - **Cursor**: max **3** concurrent `agent` processes
-   - **Gemini**: max **2** concurrent `gemini` processes
-   - **Copilot**: max **2** concurrent `copilot -p` processes
-   - If a skill needs more, queue excess and launch as slots free up. Do NOT launch all at once.
-   - These limits come from `general.md` and override any per-skill instructions.
+5. **Infrastructure access** — MCP Gateway provides the infrastructure layer:
+   - Memory (Qdrant): `mcp__gateway__memory_call`
+   - Graph (Neo4j): `mcp__gateway__graph_call`
+   - Documents (MongoDB): `mcp__gateway__mongodb_call`
+   - Projects: `mcp__gateway__project_call`
+   - Preferences: `mcp__gateway__pref_call`
+   - Agents without MCP access should skip infrastructure calls gracefully — they're enhancements, not blockers.
 
-6. **Driver skill boundary (MANDATORY)** — Any skill that dispatches Gemini, Codex, Copilot, Cursor, or Vibe must reference the corresponding driver skill instead of embedding CLI details locally.
-   - Consuming skills may specify task type, prompt template, output path, concurrency, and fallback behavior.
-   - Consuming skills must NOT inline CLI commands, flags, auth/path setup, timeout syntax, model-selection syntax, or gotcha lists for those agents.
-   - If invocation details change, update the driver skill only.
-   - For Vibe, keep prompts narrowly scoped to named files/directories or a single work unit with explicit deliverables. Never ask it to scope the whole project first.
+6. **Windows + Git Bash** — All shell commands must work in Git Bash on Windows 11:
+   - No `gtimeout` or `/opt/homebrew/*` paths
+   - No macOS-specific tools or paths
+   - Use forward slashes in paths within shell scripts
+   - Test scripts with `bash` not `zsh`
 
-7. **Homelab Tools memory sync (MANDATORY)** — Keep Qdrant memory current so home Claude stays informed across projects and sessions. Use `mcp__claude_ai_Homelab_Tools__memory_call` with `tool: 'store_memory'`.
-   - **After `/meta-execute` completion**: Store execution summary (units completed/failed/blocked, retry counts, confidence scores, wave count). Tags: `meta-execute`, `execution-summary`, `{project-name}`.
-   - **After `/github-sync` push**: Diff what was pushed against what memory already knows (search first, then store the delta). Include: commit hash, branch, files changed summary, commit message. Tags: `github-sync`, `commit-log`, `{project-name}`.
-   - **After `/research-execute` or `/meta-deep-research-execute` synthesis**: Store the executive summary + source tally + key findings. Tags: `research`, `{NNN}` or `{NNN}D`, `{project-name}`.
-   - **Format**: `{ "tool": "store_memory", "args": { "content": "<summary>", "metadata": { "tags": [...], "skill": "<skill-name>", "project": "<project-name>" } } }`
-   - **Dedup rule**: Before storing, search memory with the skill name + project name. If a recent entry (same skill, same project, <24h) exists, update it instead of creating a duplicate.
+7. **Context window discipline** — Skills should be concise. If SKILL.md exceeds 300 lines, move overflow to `references/`. Use progressive disclosure: metadata always loaded, SKILL.md on trigger, references on demand.
 
-## Structured Note Schema
+8. **Memory sync after significant work** — If a skill produces decisions, findings, or state changes worth remembering across sessions, persist them. Agents with MCP Gateway access should store to Qdrant (`memory_call` > `store`). Agents without it should note findings in their output for the user to capture.
 
-Every note in `cnotes.md` uses this format. Insert newest first (top insertion below `## Notes (Newest First)`). Once a newer note exists above yours, your note is locked — do not modify it.
+9. **Respect existing skills** — `feature-dev` and `ralph-workflow` are established development workflows. New skills complement them. Do not duplicate their functionality without clear added value.
 
-### Delimiter Format
-
-Each agent uses its own delimiter:
-```
----CLAUDE--------------------
-[note body]
-------------------------------
-
----CODEX---------------------
-[note body]
--------------------------------
-
----GEMINI-------------------
-[note body]
-------------------------------
-
----COPILOT------------------
-[note body]
-------------------------------
-```
-
-### Required Fields (all 13)
-
-1. `note_id`: `CN-YYYYMMDD-HHMMSS-AUTHOR` (e.g., `CN-20260306-143022-CLAUDE`)
-2. `timestamp_utc`: ISO-8601 UTC
-3. `author`: `CLAUDE`, `CODEX`, `GEMINI`, or `COPILOT`
-4. `activity_type`: `CODE_WRITE` or `CODE_REVIEW`
-5. `work_scope`: Short statement of task intent
-6. `files_touched`: Files edited (or `none`)
-7. `files_reviewed`: Files reviewed (or `none`)
-8. `summary`: Concise outcome summary
-9. `details`: Specific changes or findings
-10. `validation`: Tests/checks executed (or `not run`)
-11. `risks_or_gaps`: Known risks, assumptions, or unresolved items
-12. `handoff_to`: `CODEX`, `CLAUDE`, `GEMINI`, `COPILOT`, or `none`
-13. `next_actions`: Immediate follow-up steps
+10. **Driver skill boundary** — If external CLIs are added, consuming skills reference the driver skill for invocation details. Consuming skills specify: task type, prompt/context, expected output, fallback behavior. They do NOT embed CLI commands, flags, or path resolution.
