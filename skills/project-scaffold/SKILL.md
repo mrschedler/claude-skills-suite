@@ -1,7 +1,6 @@
 ---
 name: project-scaffold
 description: "Scaffolds a new project with standard folder structure, GROUNDING.md, and config files. Use when starting a new project or when a project directory is missing standard files."
-disable-model-invocation: true
 ---
 
 # project-scaffold
@@ -76,14 +75,19 @@ know where things live.
 [What exists today. Update on every major milestone.]
 ```
 
-5. **Do NOT create** any of these (they belong to other workflows):
+5. **Create Engineering Notebook** — run `/notebook-init` to create the project's
+   engineering notebook. Pass the project name, root path, and start date already
+   gathered. If the user declines, skip — the notebook can always be added later.
+
+6. **Do NOT create** any of these (they belong to other workflows):
    - coterie.md, cnotes.md, todo.md, features.md
    - project-plan.md (created by `/build-plan`)
    - project-context.md (created by `/project-context`)
    - prd.json, progress.txt (created by `/feature-dev` or `/ralph-workflow`)
    - SQLite databases, artifacts/ directories
+   - ENGINEERING-NOTEBOOK.md (created by `/notebook-init`)
 
-6. After all files are created, list what was created and confirm with the user.
+7. After all files are created, list what was created and confirm with the user.
 
 ## Exit condition
 

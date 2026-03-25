@@ -1,7 +1,6 @@
 ---
 name: project-context
 description: Writes project-context.md, a comprehensive handoff document. Use after a project-questions interview or when project-context.md is missing or stale. Complements GROUNDING.md with deeper technical detail.
-disable-model-invocation: true
 ---
 
 # project-context
