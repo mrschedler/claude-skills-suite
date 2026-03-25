@@ -59,6 +59,8 @@ the parent root. Pass these as explicit values to the scaffolder — do not
 delegate path math to the subagent.
 
 Also detect:
+- Does `GROUNDING.md` exist? (parent context — why, constraints, anti-patterns)
+- Does `ENGINEERING-NOTEBOOK.md` exist? (design history — decisions, failures, lessons)
 - Does `coterie.md` exist? (symlink target)
 - Does `project-context.md` exist? (distillation source)
 - Does `project-plan.md` exist? (scope reference)
@@ -154,6 +156,7 @@ This is the critical phase. Dispatch an Opus subagent to generate
 The distiller receives:
 - Analyzer output from Phase 1
 - User answers from Phase 2
+- Parent's `GROUNDING.md` (constraints and anti-patterns that apply to sub-project)
 - Parent's `project-context.md`, `architecture.md`, and `project-plan.md`
 
 It produces `architecture.md` with these 11 sections:

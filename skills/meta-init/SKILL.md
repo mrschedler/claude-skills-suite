@@ -38,6 +38,15 @@ output. Get user confirmation.
 If a directory already exists with code, skip scaffolding but create
 GROUNDING.md if missing.
 
+### Step 2b: Engineering Notebook (Optional — `/notebook-init`)
+
+Offer to create an engineering notebook for tracking design decisions:
+
+Ask: "Want an engineering notebook to capture decisions and lessons as you
+build? (Recommended for hardware, multi-sprint, or exploratory projects)"
+
+If the project involves patent work, suggest an inventor's notebook instead.
+
 ### Step 3: Deep Context (Optional — `/project-context`)
 
 For technically complex projects (multiple services, non-trivial architecture),
@@ -55,6 +64,7 @@ Present for approval. Revise if needed.
 ```
 Project initialized:
 - GROUNDING.md — context and decisions
+- ENGINEERING-NOTEBOOK.md — design journal (if created)
 - project-context.md — technical reference (if created)
 - project-plan.md — phased build plan with N work units
 - Directory structure ready

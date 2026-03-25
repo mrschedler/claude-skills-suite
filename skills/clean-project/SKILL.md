@@ -36,6 +36,17 @@ Phase 3 (execute) uses subagents for large batch moves.
 Run ALL of the following checks. Present results as a categorized report.
 Do NOT modify any files in this phase.
 
+#### 1.0 Read GROUNDING.md
+
+If `GROUNDING.md` exists, read it first. It explains why the project exists,
+key constraints, and anti-patterns. Use it to:
+- Understand which root files are intentional (not orphans)
+- Identify project-specific conventions that override generic rules
+- Avoid flagging things as "should move" when they're there by design
+
+Also check for `ENGINEERING-NOTEBOOK.md` — this is a project journal and
+belongs at root. Do not flag it as misplaced.
+
 #### 1.1 Root Census
 
 Count and categorize every file at the project root (not recursively):
@@ -46,7 +57,7 @@ ls -1A "$PROJECT_ROOT" | head -80
 
 Categorize each root file as:
 - **Required at root**: README.md, LICENSE, .gitignore, package manifest (package.json, Cargo.toml, pyproject.toml, go.mod), CI config (.github/), CLAUDE.md
-- **Tolerable at root**: Makefile, Dockerfile, docker-compose.yml, tsconfig.json
+- **Tolerable at root**: Makefile, Dockerfile, docker-compose.yml, tsconfig.json, GROUNDING.md, ENGINEERING-NOTEBOOK.md, project-context.md, CURRENT-STATE.md
 - **Should move**: anything else — assess case-by-case
 
 Flag if root has >20 files (warning) or >30 files (critical).
@@ -101,8 +112,10 @@ Find files that nothing references:
    grep -r "$(basename "$FILE")" "$PROJECT_ROOT" --include='*.{ts,js,py,go,rs,md,json,yaml,yml,toml,sh}' -l 2>/dev/null
    ```
 3. Files with zero references are orphan candidates
-4. Exclude: README.md, LICENSE, .gitignore, CLAUDE.md, AGENTS.md (these are
-   convention-based, not import-based)
+4. Exclude: README.md, LICENSE, .gitignore, CLAUDE.md, AGENTS.md, GROUNDING.md,
+   ENGINEERING-NOTEBOOK.md, INVENTORS-NOTEBOOK.md, project-context.md,
+   CURRENT-STATE.md, PLAN-*.md, CLAUDE_NOTES.md (these are convention-based,
+   not import-based)
 
 #### 1.5 Config Scatter
 

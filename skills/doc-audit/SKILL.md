@@ -42,10 +42,22 @@ AGE=$(db_age_hours 'doc-audit' 'findings' 'standalone')
 ```
 If `$AGE` is non-empty and less than 24, report: "Found fresh doc-audit findings from $AGE hours ago. Reuse them? (y/n)"
 
+### 0. Read GROUNDING.md
+
+If `GROUNDING.md` exists, read it first. It explains the project's purpose,
+key decisions, constraints, and anti-patterns. Use it to understand what
+documentation *should* exist and who the audience is. Cross-reference it
+with README.md for consistency — they should tell the same story at
+different levels of detail.
+
 ### 1. Inventory Documentation
 
 Catalog all documentation in the project:
 - Root `README.md` — does it exist? When was it last updated?
+- `GROUNDING.md` — does it exist? Is it current? Does it align with README?
+- `ENGINEERING-NOTEBOOK.md` — does it exist? Is the last entry recent relative to project activity?
+- `project-context.md` — does it exist? Is it consistent with GROUNDING.md?
+- `CURRENT-STATE.md` — does it exist? Is it stale relative to recent commits?
 - `CONTRIBUTING.md`, `CHANGELOG.md`, `LICENSE` — do they exist?
 - `docs/` directory — what's in it?
 - API documentation (generated or hand-written)
