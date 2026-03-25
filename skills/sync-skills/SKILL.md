@@ -19,7 +19,7 @@ the skill suite. Can inject missing files or update existing ones.
 
 ### 1. Discover Template Set
 
-Read the template table from `project-scaffold/SKILL.md` to get the canonical
+Read the template table from `project-organize/SKILL.md` to get the canonical
 list of templates and their output destinations:
 
 | Template | Output |

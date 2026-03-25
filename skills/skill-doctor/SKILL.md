@@ -28,7 +28,7 @@ deploy-gateway, todo-features, release-prep,
 browser-review, codex, gemini,
 completeness-review, compliance-review, counter-review, drift-review,
 refactor-review, security-review, test-review,
-project-scaffold, project-questions, project-context, infra-health
+project-organize, project-questions, project-context, infra-health
 ```
 
 ### 3. Check Research Skills (4+1)
@@ -54,7 +54,7 @@ evolve, skill-doctor, sync-skills
 
 ### 6. Check Templates
 
-**In `project-scaffold/templates/`:**
+**In `archive/project-scaffold/templates/` (deprecated, retained for reference):**
 ```
 coterie-template.md, cnotes-template.md, todo-template.md,
 features-template.md, claude-md-template.md, agents-md-template.md,
@@ -94,8 +94,7 @@ These skills should have `disable-model-invocation: true` (they're internal, not
 
 ```
 meta-deep-research-execute, research-execute, research-plan,
-project-scaffold, project-questions, project-context,
-sync-skills, infra-health
+project-questions, sync-skills, infra-health
 ```
 
 Missing flag = WARNING (consuming description budget unnecessarily).

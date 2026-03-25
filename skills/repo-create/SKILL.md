@@ -63,7 +63,7 @@ wants a new repo created. It never assumes — it asks.
    If a remote named `origin` already exists and points somewhere else, ask
    before overwriting. Silently clobbering a remote loses work — always confirm.
 
-6. **Ensure .gitignore exists.** If `project-scaffold` already ran, it will be
+6. **Ensure .gitignore exists.** If `/project-organize` already ran, it will be
    there. If not, create a sensible default (node_modules, .env, .DS_Store,
    artifacts/, __pycache__). Never commit secrets — the .gitignore is your first
    line of defense.

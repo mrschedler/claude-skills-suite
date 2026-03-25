@@ -72,7 +72,7 @@ answers, and keeps digging until the project is defined enough to plan against.
    - The user says "I think you've got it"
 
 5. **Close with a summary.** Structured summary of everything learned. This
-   feeds into `project-scaffold` (GROUNDING.md) or `project-context`.
+   feeds into `/project-organize` (GROUNDING.md) or `/project-context`.
 
 ## Exit condition
 

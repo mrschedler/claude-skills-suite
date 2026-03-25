@@ -16,7 +16,7 @@ a current build plan.
 ## Chain
 
 ```
-project-scaffold -> repo-create -> meta-review -> sync-skills
+project-organize -> repo-create -> meta-review -> sync-skills
     -> project-questions -> project-context -> build-plan
 
 Delegation key:
@@ -24,7 +24,7 @@ Delegation key:
   [I] = inline     — requires user interaction, stays in main thread
   [D] = self-delegating — already dispatches its own subagents
 
-  scaffold[S] -> repo-create[I] -> meta-review[D] -> sync-skills[S]
+  organize[S] -> repo-create[I] -> meta-review[D] -> sync-skills[S]
       -> project-questions[I] -> project-context[I] -> build-plan[S]
 ```
 
@@ -42,24 +42,21 @@ When triggered, ask the user:
 - If **full**: Continue with the standard 7-step chain below.
 - If the user already specified "quick" in their prompt (e.g., "quick catch-up", "just the basics"), skip the question and run quick mode.
 
-### Step 1: Project Scaffold [Subagent]
+### Step 1: Project Organize [Subagent]
 
-Check if the project has the standard directory structure (`artifacts/compact/`,
-`artifacts/research/`, `artifacts/research/summary/`, `artifacts/reviews/`, `docs/`, `src/`) and template files (`coterie.md`, `cnotes.md`,
-`todo.md`, `features.md`, `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`,
-`.gitignore`).
+Check if the project has GROUNDING.md, CLAUDE.md, and basic structure.
 
-- **If all present**: skip. Confirm: "Scaffold already exists — skipping."
+- **If all present**: skip. Confirm: "Project organized — skipping."
 - **If partially present or missing**: dispatch a subagent. Do NOT read
-  `../project-scaffold/SKILL.md` into the main context.
+  `../project-organize/SKILL.md` into the main context.
 
 ```
 Spawn a general-purpose subagent with this prompt:
 
-"You are filling gaps in an existing project's scaffold.
+"You are organizing an existing project.
 
 1. Read the skill instructions at:
-   [absolute path to skills/project-scaffold/SKILL.md]
+   [absolute path to skills/project-organize/SKILL.md]
 
 2. Project root: [PATH]
 
