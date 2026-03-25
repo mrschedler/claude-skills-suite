@@ -17,7 +17,7 @@ plan in one workflow.
 ## Flow
 
 ```
-project-questions → project-scaffold → project-context (optional) → build-plan
+project-questions → project-organize → build-plan
 ```
 
 ## Instructions
@@ -30,31 +30,17 @@ tech stack, and constraints.
 If the user says "skip the interview, I know what I want", respect that and
 proceed with provided context.
 
-### Step 2: Scaffold (`/project-scaffold`)
+### Step 2: Organize (`/project-organize`)
 
-Create directory structure and GROUNDING.md. Fill GROUNDING.md from interview
-output. Get user confirmation.
+Runs the full project organization flow: creates GROUNDING.md, CLAUDE.md,
+engineering notebook (if warranted), directory structure, .gitignore, and
+fixes stale docs if the project already has content. Pass interview output
+as context so GROUNDING.md is filled from the interview answers.
 
-If a directory already exists with code, skip scaffolding but create
-GROUNDING.md if missing.
+`/project-organize` handles both new and existing projects — it detects
+what exists and adapts.
 
-### Step 2b: Engineering Notebook (Optional — `/notebook-init`)
-
-Offer to create an engineering notebook for tracking design decisions:
-
-Ask: "Want an engineering notebook to capture decisions and lessons as you
-build? (Recommended for hardware, multi-sprint, or exploratory projects)"
-
-If the project involves patent work, suggest an inventor's notebook instead.
-
-### Step 3: Deep Context (Optional — `/project-context`)
-
-For technically complex projects (multiple services, non-trivial architecture),
-offer to write project-context.md. For simple projects, GROUNDING.md is enough.
-
-Ask: "Want a detailed project-context.md, or is GROUNDING.md sufficient?"
-
-### Step 4: Build Plan (`/build-plan`)
+### Step 3: Build Plan (`/build-plan`)
 
 Generate project-plan.md with phases, milestones, and work units.
 Present for approval. Revise if needed.

@@ -1,9 +1,15 @@
 ---
 name: project-scaffold
-description: "Scaffolds a new project with standard folder structure, GROUNDING.md, and config files. Use when starting a new project or when a project directory is missing standard files."
+description: "DEPRECATED — use /project-organize instead. Scaffolds a new project with standard folder structure, GROUNDING.md, and config files."
+disable-model-invocation: true
 ---
 
 # project-scaffold
+
+> **DEPRECATED:** This skill is superseded by `/project-organize`, which handles
+> both new and existing projects. Use `/project-organize` instead.
+
+## Original Skill (retained for reference)
 
 Create the canonical folder structure and seed files for a new project. Every
 project shares the same skeleton so any agent can cold-start and immediately

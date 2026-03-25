@@ -1,9 +1,17 @@
 ---
 name: clean-project
-description: Audits and tidies project structure for agent-optimal navigation. Detects duplicate DBs, orphaned files, config scatter, naming drift, and bloat. Proposes then executes approved changes safely.
+description: "DEPRECATED — use /project-organize instead. Audits and tidies project structure. The audit logic is now Phase 4 of /project-organize."
+disable-model-invocation: true
 ---
 
 # Clean Project
+
+> **DEPRECATED:** The audit and cleanup logic from this skill is now Phase 4
+> of `/project-organize`. Use `/project-organize` for the full workflow
+> (create docs + fix stale + audit structure), or reference this file for
+> the detailed audit checklist that `/project-organize` Phase 4 follows.
+
+## Original Skill (retained as audit reference)
 
 Audit a project's file structure, detect mess, propose fixes, and execute
 approved changes without breaking anything. Optimized for making projects
