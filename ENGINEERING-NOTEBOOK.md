@@ -119,6 +119,80 @@ memory-upgrade initiative (not a standalone project).
 
 ---
 
+## Entry 4 -- claude-deep-research: Analysis and Design (2026-03-28)
+
+**What:** Deep analysis of Trevor's `meta-deep-research` + `meta-deep-research-execute` skills
+(1,019 lines of combined instructions, 6-phase protocol, 4 research tracks, 3-model debate).
+Designed a Claude-only replacement called `claude-deep-research` that preserves the protocol's
+strengths while fixing fundamental flaws exposed by real-world usage.
+
+**Why:** The original skill was designed for a multi-CLI, multi-model world (Codex, Gemini, Claude)
+that rarely materializes in practice. Analysis of 7+ actual research runs (001D-008D) revealed:
+- The "full protocol" as designed has likely **never executed as written** -- every run shows
+  degradation (Codex unavailable, Gemini timed out, self-consistency fallback)
+- ~40% of instruction tokens are spent on tracks (Codex CLI, Gemini CLI) that rarely execute
+- 4 cross-cutting rule violations (Rules 3, 4, 6, 10): hardcoded model names, macOS paths,
+  embedded CLI commands, broken Windows compatibility
+- Subagents writing directly to SQLite creates race conditions (no WAL mode, no busy timeout)
+  and fragile dependency chain (sqlite3 PATH, git rev-parse, xxd)
+- No progress feedback (15-50 minute black box), no checkpoint/resume
+- 1000+ source target hit in only 1 of 4 examined runs
+- Debate between 3 Claude instances is self-consistency, not true adversarial debate
+
+**What's genuinely good (preserved in rewrite):**
+- Output format (executive summary, confidence map, contested claims, source index)
+- Artifact DB intermediate storage with skill/phase/label key scheme
+- research-connector agent with multi-query protocol
+- Coverage expansion concept (catches gaps initial fan-out misses)
+- Convergence scoring matrix (6 levels: VERIFIED → UNRESOLVED)
+- Context isolation (dispatcher stays lean, heavy work in one subagent)
+
+**Key design decisions for claude-deep-research:**
+
+1. **Orchestrator owns all DB writes.** Subagents return structured content in Agent tool
+   responses. Orchestrator batch-writes to SQLite. Eliminates: sqlite3 PATH issues, race
+   conditions, git rev-parse fragility, shell escaping problems.
+
+2. **Steelman/Steelman debate replaces 3-model theater.** One subagent builds strongest case
+   FOR emerging consensus, one builds strongest case AGAINST, orchestrator judges. Rationale:
+   3 Claude instances don't bring genuine epistemic diversity (same training data, same biases).
+   Steelman/steelman is more efficient (3 docs vs 9) and more honest about what single-model
+   debate provides. Still catches contested claims through forced adversarial framing.
+
+3. **200-300 line instruction target.** Original loads 1,019 lines into orchestrator context
+   (~7.5% consumed before any research). Lean instructions = more context for actual research.
+
+4. **Progress tracking.** Orchestrator writes progress file after each phase. Dispatcher can
+   report status. No more 30-minute black box.
+
+5. **Checkpoint/resume.** Each phase checks DB for existing outputs before executing. Crashed
+   runs resume from last completed phase, not from scratch.
+
+6. **Adaptive source targets.** Based on sub-questions × available connectors, not fixed 1000+.
+
+7. **Threshold-based addendum.** Runs when coverage reviewers identify gaps OR source count is
+   below target. Runs ~80% of the time but doesn't waste tokens on already-excellent coverage.
+
+8. **Prerequisite validation at launch.** Verify sqlite3 in PATH, artifacts dir exists, db.sh
+   sourceable before spawning any subagents. Fail fast with clear error.
+
+**Alternatives considered:**
+- *Role-based 3-way debate (optimist/pessimist/pragmatist)*: Rejected -- synthetic diversity
+  from the same model is weaker than forced steelman/steelman adversarial framing.
+- *Drop artifact DB entirely, keep everything in orchestrator context*: Rejected -- DB adds
+  resumability and queryability. Worth the sqlite3 dependency with proper validation.
+- *Keep the D suffix for folder numbering*: Keeping it -- this IS deep research, just Claude-only.
+  Methodology section will note the approach.
+
+**Result:** Design complete. Build pending. Evaluation criteria documented in
+`skills/claude-deep-research/references/design-intent.md`.
+
+**Evidence:** Qdrant: search "claude-deep-research design analysis meta-deep-research audit 2026-03-28".
+Artifact DB: `db_search "claude-deep-research design"`.
+Prior audit: `skills/deep-research-skill-audit.md` (Trevor's original audit for comparison).
+
+---
+
 <!-- New entries go above this line. Use the format:
 
 ## Entry N -- Title (YYYY-MM-DD)
