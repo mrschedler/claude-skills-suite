@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
 # PostToolUse hook — deterministic complexity check after Edit/Write
-# Runs fast CLI linters on the edited file. No LLM cost.
+# Runs fast CLI linters on edited files. No LLM cost.
 # Only checks JS/TS/Python files. Skips everything else silently.
+# All tools optional — gracefully exits if not installed.
+# Works on Windows Git Bash.
 
 INPUT=$(cat)
-FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty')
+FILE_PATH=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || echo "")
 
-# Exit silently if no file path (shouldn't happen but safety)
+# Exit silently if no file path
 [ -z "$FILE_PATH" ] && exit 0
+
+# Normalize path for Git Bash
+FILE_PATH=$(echo "$FILE_PATH" | sed 's|\\|/|g')
 
 # Only check code files
 case "$FILE_PATH" in
@@ -22,40 +27,40 @@ case "$FILE_PATH" in
     ;;
 esac
 
+# Check file exists
+[ ! -f "$FILE_PATH" ] && exit 0
+
 WARNINGS=""
 
-if [ "$LANG" = "js" ]; then
-  # Check cognitive complexity via eslint + sonarjs if available
-  if command -v npx &>/dev/null; then
-    # Quick complexity check — only errors, no warnings
+if [ "$LANG" = "py" ]; then
+  if command -v ruff >/dev/null 2>&1; then
+    RESULT=$(ruff check --select C901,E501 --line-length 120 "$FILE_PATH" 2>/dev/null || true)
+    if [ -n "$RESULT" ] && echo "$RESULT" | grep -q "C901"; then
+      WARNINGS="$RESULT"
+    fi
+  fi
+elif [ "$LANG" = "js" ]; then
+  if command -v npx >/dev/null 2>&1; then
+    # Quick complexity check — cognitive complexity > 15, nesting > 4, function > 50 lines
     RESULT=$(npx --yes eslint --no-eslintrc \
       --plugin sonarjs \
       --rule '{"sonarjs/cognitive-complexity": ["error", 15]}' \
       --rule '{"max-depth": ["error", 4]}' \
       --rule '{"max-lines-per-function": ["warn", {"max": 50, "skipBlankLines": true, "skipComments": true}]}' \
-      "$FILE_PATH" 2>/dev/null)
+      "$FILE_PATH" 2>/dev/null || true)
 
-    if [ $? -ne 0 ] && [ -n "$RESULT" ]; then
-      WARNINGS="$RESULT"
-    fi
-  fi
-elif [ "$LANG" = "py" ]; then
-  # Check with ruff if available
-  if command -v ruff &>/dev/null; then
-    RESULT=$(ruff check --select C901,E501 --line-length 120 "$FILE_PATH" 2>/dev/null)
-    if [ $? -ne 0 ] && [ -n "$RESULT" ]; then
+    if [ -n "$RESULT" ] && echo "$RESULT" | grep -qE '(error|warning)'; then
       WARNINGS="$RESULT"
     fi
   fi
 fi
 
 if [ -n "$WARNINGS" ]; then
-  # Escape for JSON
-  ESCAPED=$(echo "$WARNINGS" | head -20 | jq -Rs .)
+  ESCAPED=$(echo "$WARNINGS" | head -20 | sed 's/"/\\"/g' | tr '\n' ' ')
   cat <<EOF
 {
   "decision": "block",
-  "reason": "Complexity threshold exceeded in edited file. Fix before continuing:\n\n${ESCAPED}\n\nReduce cognitive complexity to ≤15, nesting to ≤4 levels, and function length to ≤50 lines."
+  "reason": "Complexity threshold exceeded in edited file. Simplify before continuing:\n\n$ESCAPED\n\nTargets: cognitive complexity ≤15, nesting ≤4, function length ≤50 lines."
 }
 EOF
 else

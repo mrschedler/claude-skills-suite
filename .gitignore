@@ -9,6 +9,9 @@ artifacts/project.db-shm
 # Ephemeral session state
 compact/
 
+# Desktop config (contains CF Access secrets)
+config/desktop/claude_desktop_config.json
+
 # macOS
 .DS_Store
 **/.DS_Store

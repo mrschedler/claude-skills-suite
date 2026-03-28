@@ -1,0 +1,59 @@
+{
+  "mcpServers": {
+    "gateway": {
+      "url": "https://mcp.epiphanyco.com/mcp",
+      "headers": {
+        "CF-Access-Client-Id": "REPLACE_WITH_CF_ACCESS_CLIENT_ID",
+        "CF-Access-Client-Secret": "REPLACE_WITH_CF_ACCESS_CLIENT_SECRET"
+      },
+      "alwaysAllow": [
+        "activity_call", "activity_list",
+        "ai_call", "ai_list",
+        "blueprint_call", "blueprint_list",
+        "browser_call", "browser_list",
+        "contacts_call", "contacts_list",
+        "context7_call", "context7_list",
+        "coordination_call", "coordination_list",
+        "dify_call", "dify_list",
+        "docker_call", "docker_list",
+        "figma_call", "figma_list",
+        "gateway_call", "gateway_list",
+        "github_call", "github_list",
+        "graph_call", "graph_list",
+        "mattermost_call", "mattermost_list",
+        "memory_call", "memory_list",
+        "mongodb_call", "mongodb_list",
+        "n8n_call", "n8n_list",
+        "obsidian_call", "obsidian_list",
+        "openhands_call", "openhands_list",
+        "pg_call", "pg_list",
+        "pref_call", "pref_list_tools",
+        "project_call", "project_list",
+        "prometheus_call", "prometheus_list",
+        "rabbitmq_call", "rabbitmq_list",
+        "recipe_call", "recipe_list",
+        "redis_call", "redis_list",
+        "ssh_call", "ssh_list",
+        "task_call", "task_list",
+        "telegram_call", "telegram_list",
+        "traefik_call", "traefik_list",
+        "uptime_call", "uptime_list",
+        "vault_call", "vault_list",
+        "vector_call", "vector_list",
+        "workspace_call", "workspace_list"
+      ]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest"
+      ]
+    }
+  },
+  "preferences": {
+    "coworkScheduledTasksEnabled": true,
+    "ccdScheduledTasksEnabled": true,
+    "sidebarMode": "chat",
+    "coworkWebSearchEnabled": true
+  }
+}

@@ -1,0 +1,5 @@
+SESSION START: (1) gateway_call > rehydrate {topic, project_slug} (2) Check pending tasks if not in rehydrate results
+
+BEFORE NEO4J/QDRANT OPS: Search "[tool] gotcha" first.
+
+COMPACTION INCOMING: Store any unsaved context to Qdrant NOW. Summarize task state, decisions, and next steps.

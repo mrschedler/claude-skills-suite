@@ -1,0 +1,129 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__homelab__*",
+      "mcp__gateway__*",
+      "Read",
+      "Write",
+      "Edit",
+      "Glob",
+      "Grep",
+      "Bash",
+      "Agent",
+      "WebFetch",
+      "WebSearch"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat /c/dev/claude-skills-suite/config/code/behavioral-reminders.txt"
+          },
+          {
+            "type": "command",
+            "command": "bash /c/dev/claude-skills-suite/hooks/session-prewarm.sh"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat /c/dev/claude-skills-suite/config/code/behavioral-reminders.txt"
+          },
+          {
+            "type": "command",
+            "command": "bash /c/dev/claude-skills-suite/hooks/pre-compact-capture.sh"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /c/dev/claude-skills-suite/hooks/search-before-act.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash /c/dev/claude-skills-suite/hooks/pre-commit-lint.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /c/dev/claude-skills-suite/hooks/post-edit-complexity.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /c/dev/claude-skills-suite/hooks/post-edit-complexity.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /c/dev/claude-skills-suite/hooks/post-commit-memory-sync.sh"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /c/dev/claude-skills-suite/hooks/stop-quality-gate.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash /c/dev/claude-skills-suite/hooks/stop-memory-checkpoint.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash /c/dev/claude-skills-suite/hooks/session-end-summary.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "effortLevel": "high",
+  "skipDangerousModePermissionPrompt": true,
+  "mcpServers": {
+    "homelab": {
+      "command": "bash",
+      "args": [
+        "-c",
+        "cd ~/.claude/mcp-servers && node homelab-mcp.js"
+      ]
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest"
+      ]
+    }
+  },
+  "skills": [
+    "C:\\dev\\claude-skills-suite\\skills"
+  ]
+}
