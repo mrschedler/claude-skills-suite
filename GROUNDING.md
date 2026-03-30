@@ -120,7 +120,7 @@ Qdrant: search "skill suite simplification plan 2026-03-25"
 
 5. **DO NOT make skills exceed 300 lines.** Move overflow to `references/`. Cross-cutting rule 7.
 
-6. **DO NOT break feature-dev or ralph-workflow.** These are established daily-driver skills. New skills complement them; they do not replace them without explicit approval. Cross-cutting rule 9.
+6. **DO NOT break feature-dev.** This is the established daily-driver development skill (includes Ralph mode for multi-session iterative work). New skills complement it; they do not replace it without explicit approval. Cross-cutting rule 9.
 
 7. **DO NOT hardcode model names in skill logic.** Skills describe tasks; the executing agent chooses how to delegate.
 

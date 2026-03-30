@@ -26,7 +26,7 @@ skills/                      # 55 active skill directories (each has SKILL.md)
   archive/                   # Deprecated skills (project-scaffold, clean-project)
   project-organize/          # Newest: replaces scaffold + clean-project
   feature-dev/               # Daily driver development skill
-  ralph-workflow/            # Autonomous iterative coding
+  archive/ralph-workflow/    # Merged into feature-dev Ralph mode
   notebook-init/             # Engineering notebook creation
   meta-*/                    # Orchestration skills
   *-review/                  # Review lenses
@@ -55,7 +55,7 @@ rules/                       # Global rules (general.md)
 2. Read `references/cross-cutting-rules.md` (every skill must follow these)
 3. Make changes. Preserve the frontmatter format
 4. If the skill has references/, check those for consistency
-5. Do NOT break `feature-dev` or `ralph-workflow` -- they are established workflows
+5. Do NOT break `feature-dev` -- it is the established development workflow (includes Ralph mode)
 
 ## Key Conventions
 
@@ -79,5 +79,5 @@ rules/                       # Global rules (general.md)
 - DO NOT deprecate Trevor's skills without understanding the research behind them
 - DO NOT create skills that exceed 300 lines (use references/ for overflow)
 - DO NOT assume external CLIs exist (gate behind checks, provide fallback)
-- DO NOT replace feature-dev or ralph-workflow without Matt's explicit approval
+- DO NOT replace feature-dev without Matt's explicit approval
 - DO NOT hardcode model names in skill logic

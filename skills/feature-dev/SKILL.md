@@ -1,176 +1,225 @@
 ---
 name: feature-dev
-description: Unified feature development skill. Automatically determines appropriate rigor level based on task complexity. Use for any development work - from quick fixes to complex features. Triggers on "build a feature", "implement", "develop", "create functionality", or when user describes work that needs planning.
-allowed-tools: Read,Write,Edit,Bash,Glob,Grep,AskUserQuestion,TodoWrite
-user-invocable: true
+description: "Unified feature development skill. Automatically determines appropriate rigor level based on task complexity. Use for any development work - from quick fixes to complex features. Triggers on \"build a feature\", \"implement\", \"develop\", \"create functionality\", or when user describes work that needs planning."
 ---
 
-# Feature Development Skill
+# feature-dev
 
-One skill that adapts to what you are building. No unnecessary ceremony for simple tasks. Full rigor when complexity demands it.
+One skill that adapts to what you're building. Routes to the right level of
+rigor based on complexity. No ceremony for simple tasks. Full iterative
+workflow when complexity demands it.
 
----
+## Step 1: Read Project Context
 
-## Always: Project Memory (CLAUDE_NOTES.md)
+1. Read `GROUNDING.md` if it exists — understand why the project exists,
+   decisions, constraints
+2. Read `PROGRESS.md` if it exists — pick up where the last session left off
+3. Read `prd.json` or `USER_STORIES.md` if they exist — active story state
 
-**Every project should have a CLAUDE_NOTES.md file.** This is separate from task tracking - it is persistent context that survives across sessions, days, or weeks.
+If resuming mid-feature (PROGRESS.md + prd.json exist), skip to Step 3.
 
-### On Session Start
-1. Check for CLAUDE_NOTES.md in project root
-2. If exists: Read it to understand project context, recent work, known issues
-3. If missing: Create it after understanding the project
-
-### On Session End (or significant milestones)
-Update the notes with:
-- What was accomplished
-- Any new patterns discovered
-- Known issues or next steps
-- Anything future-you needs to know
-
-### Why This Matters
-- User often returns to projects days/weeks later with no more memory than Claude
-- Reading this file gives instant context without re-exploring the codebase
-- Low overhead (one file to read/update) but high value
-
----
-
-## Then: Assess Complexity
+## Step 2: Assess Complexity
 
 | Complexity | Signals | Approach |
 |------------|---------|----------|
-| **Simple** | Single file, clear fix, under 30 min | Just do it |
-| **Medium** | 2-4 files, clear scope, 1-2 hours | Light planning, then do it |
-| **Complex** | 5+ files, unclear scope, multiple sessions | Full PRD + Ralph workflow |
+| **Simple** | Single file, clear fix, under 30 min | Do it. Commit. Done. |
+| **Medium** | 2-4 files, clear scope, 1-2 hours | Light plan → implement → commit |
+| **Complex** | 5+ files, multi-session, unclear edges | Ralph mode (see below) |
 
----
+**Simple and medium:** Just work. Follow existing code patterns, run tests,
+commit with a descriptive message. No PRD, no progress files, no ceremony.
 
-## The PRD Format (When Needed)
+**Complex:** Continue to Step 3.
 
-Only create prd.json for complex, multi-session work. Stories need: id, title, description, acceptance criteria, dependsOn array, passes boolean.
+## Step 3: Ralph Mode — Iterative Multi-Session Development
 
----
+### Prerequisites
 
-## Progress Tracking (For Multi-Session Work)
+Ralph mode requires project-organize to have run first. If `GROUNDING.md`
+does not exist:
 
-Create progress.txt for complex features with: Patterns Discovered, per-story entries (Done, Files, Learned, Build Status).
+```
+This feature needs iterative development, but the project has no GROUNDING.md.
+Run /project-organize first to set up project structure and artifact DB.
+```
 
----
+Stop and prompt the user. Do not proceed without GROUNDING.md.
 
-## The Ralph Pattern (When You Step Away)
+### 3a: Initialize (first time only)
 
-1. Create prd.json with remaining stories
-2. Each new session: Read prd.json, find next incomplete story, implement it
-3. After each story: Mark passes: true, append to progress.txt
-4. Fresh context = fresh focus
+**Set up artifact DB** (skip if already initialized):
+```bash
+export PATH="/c/Users/matts/AppData/Local/Microsoft/WinGet/Packages/SQLite.SQLite_Microsoft.Winget.Source_8wekyb3d8bbwe:$PATH"
+export PROJECT_DB="$(pwd)/artifacts/project.db"
+source artifacts/db.sh && db_init 2>/dev/null || true
+```
 
----
+**Create prd.json** with right-sized stories. See `references/prd-schema.md`.
 
-## Autonomous Execution (No Approval Gates)
+Right-sized means:
+- Completable in a single focused session
+- Clear acceptance criteria
+- No dependencies on uncommitted work
 
-**For running without human oversight or with Sonnet/Haiku.**
+Stories numbered as `X.Y` (phase.sequence): `1.1`, `1.2`, `2.1`, etc.
 
-### Start of Each Iteration
-1. Read CLAUDE_NOTES.md (required)
-2. Read prd.json (find current story)
-3. Read progress.txt (see previous iterations)
-4. Check git log --oneline -5
-5. Run build/tests - fix failures first
+**Create PROGRESS.md** — thin state pointer only:
 
-### During Execution
-- Implement ONE story only
+```markdown
+# Progress
+| Field | Value |
+|-------|-------|
+| Current Story | 1.1 - {title} |
+| Last Completed | — |
+| Blockers | None |
+
+## Next
+1. Read prd.json story 1.1
+2. {specific first action}
+```
+
+**Add Development Workflow section to GROUNDING.md:**
+
+```markdown
+## Development Workflow
+Uses iterative story-based development (feature-dev Ralph mode).
+- Task definitions: prd.json
+- Current state: PROGRESS.md (pointer only — history in artifact DB)
+- Story completions: artifact DB (skill=dev, phase=story-complete)
+- Lessons learned: Qdrant memory (category: {project-slug})
+```
+
+### 3b: Pick Up Work (every session)
+
+1. Read `PROGRESS.md` — know current story and next action
+2. Read `prd.json` — find the story details and acceptance criteria
+3. `git log --oneline -5` — see recent commits
+4. Run build/tests — fix failures before new work
+
+### 3c: Implement One Story
+
+- Focus on ONE story only
 - Follow existing code patterns
 - Make minimal, focused changes
 - Run build + tests frequently
 
-### End of Each Iteration (Write to FILES)
-1. Git commit with descriptive message
-2. Update prd.json: Set passes: true
-3. Append to progress.txt: What, files, gotchas, build status
-4. Update CLAUDE_NOTES.md if needed
+### 3d: Complete Story
 
-### If Something Breaks
-- Do NOT mark story complete
-- Document failure in progress.txt
-- Next iteration can diagnose/fix
-- Git history enables rollback
-
----
-
-## Browser Verification (UI Stories)
-
-Use Playwright MCP for UI stories:
-- browser_navigate to URL
-- browser_snapshot for structure (token-efficient)
-- browser_screenshot for visual verification
-- Document results in progress.txt
-
----
-
-## Quality Gates (Non-Negotiable)
-
-Before marking ANY story passes: true:
+**Quality gates (non-negotiable):**
 - Build passes
-- TypeCheck passes (if TypeScript)
 - Related tests pass
-- UI verified (if applicable)
+- UI verified if applicable (use Playwright MCP)
 - Code follows existing patterns
-- No regressions
 
-If ANY gate fails: Do NOT mark complete. Document in progress.txt.
+If ANY gate fails: do not mark complete. Document the failure in artifact DB
+and move on.
+
+**Record completion in artifact DB:**
+```bash
+source artifacts/db.sh
+db_write "dev" "story-complete" "{X.Y}/{story-slug}" \
+  "Story {X.Y}: {title}. Files: {list}. Gotcha: {issue or None}. Verified: {how}."
+```
+
+**Store gotchas/lessons to Qdrant** (if worth remembering across sessions):
+```
+memory_call > store
+  content: [gotcha or lesson, self-contained]
+  tags: dev, gotcha, {project-name}
+  category: {project-slug}
+```
+
+**Commit:**
+```
+feat|fix|refactor: {description} (Story {X.Y})
+```
+One story = one atomic commit = one rollback point.
+
+**Update prd.json:** Set `"passes": true` on the completed story.
+
+**Update PROGRESS.md** — overwrite (not append):
+```markdown
+# Progress
+| Field | Value |
+|-------|-------|
+| Current Story | {next X.Y} - {title} |
+| Last Completed | {X.Y} - {title} ({date}) |
+| Blockers | None |
+
+## Next
+1. {specific next action}
+2. {specific next action}
+```
+
+### 3e: Phase Transitions
+
+When all stories in a phase are complete:
+
+```bash
+source artifacts/db.sh
+db_read_all "dev" "story-complete"  # review what was built
+```
+
+Before starting the next phase:
+1. Review lessons from completed phase (query artifact DB)
+2. Confirm with user before proceeding
+3. Check if remaining stories still make sense given what was learned
+
+### 3f: Validation
+
+At phase transitions, every 5 stories, or after context reset:
+
+```bash
+source artifacts/db.sh
+# Check all stories completed in order
+db_read_all "dev" "story-complete"
+# Check for gaps or out-of-order completions
+```
+
+Cross-check: artifact DB completion records match `prd.json` passes flags
+match `PROGRESS.md` current story pointer.
+
+## What Ralph Is Good For
+
+- CRUD endpoints and API routes
+- Pattern migrations (updating many similar files)
+- Test coverage expansion
+- UI wiring, form implementations
+- Database schema additions
+- Mechanical, well-defined work
+
+## What Ralph Is Bad For
+
+- Fuzzy product definitions (plan first with `/build-plan`)
+- Core architecture decisions
+- Security-sensitive changes (use `/security-review`)
+- Performance optimization (needs human judgment)
+- Complex business logic with edge cases
+
+**Rule of thumb:** Ralph excels at mechanical work with clear patterns. If
+the task requires judgment calls, do it yourself or break it into smaller
+mechanical pieces.
+
+## Autonomous Execution (No Human Oversight)
+
+Same workflow, stricter discipline:
+
+1. Read PROGRESS.md + prd.json + git log (mandatory)
+2. Implement ONE story only
+3. All quality gates must pass
+4. Commit + record to artifact DB + update PROGRESS.md
+5. If something breaks: record failure in DB, do NOT mark complete
+
+Fresh context each session. Files and DB are the source of truth,
+not conversation history.
+
+## Errors
+
+- No GROUNDING.md → prompt user to run `/project-organize`
+- No artifact DB → run `db_init` (creates it)
+- No sqlite3 → fall back to appending completions to `PROGRESS.md`
+- No MCP Gateway → skip Qdrant memory sync, note in commit message
 
 ---
 
-## Git Commit Protocol (Required)
-
-### Commit Timing
-- Commit AFTER each completed story
-- Each story = one atomic commit = one rollback point
-- Never batch multiple stories
-
-### Commit Format
-feat|fix|refactor: Short description (Story #X)
-- What was changed
-- Why it was changed
-Co-Authored-By: Claude <noreply@anthropic.com>
-
-### Rollback
-- git log --oneline (see iterations)
-- git diff HEAD~1 (see changes)
-- git revert HEAD (undo cleanly)
-- git reset --hard HEAD~1 (nuclear)
-
-### Never
-- Commit broken code
-- Use vague messages
-- Skip commits
-
----
-
-## What NOT to Do
-
-- Create prd.json for simple fixes
-- Ask questions when task is obvious
-- Skip git commits in autonomous mode
-- Mark stories complete if gates fail
-
-## What TO Do
-
-- Match rigor to complexity
-- Always maintain CLAUDE_NOTES.md
-- Always commit after each story
-- Always run quality gates
-
----
-
-## Quick Reference
-
-| Task Type | Planning | Notes | Tracking | Gates | Commits |
-|-----------|----------|-------|----------|-------|---------|
-| Simple | None | If relevant | None | Basic | One when done |
-| Medium | Inline | After | None | Build+test | Per unit |
-| Complex | prd.json | Per story | progress.txt | Full | Per story |
-| Autonomous | prd.json | Each iteration | progress.txt | Strict | Required |
-
----
-
-*Rigor should serve the work, not the other way around.*
+Before completing, read and follow `../references/cross-cutting-rules.md`.

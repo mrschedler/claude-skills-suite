@@ -193,6 +193,151 @@ Prior audit: `skills/deep-research-skill-audit.md` (Trevor's original audit for 
 
 ---
 
+## Entry 5 -- Stop Hooks Value Audit (2026-03-29)
+
+**What:** Audited all 11 hooks across 5 lifecycle events for value vs. workflow cost.
+Found three Stop hooks firing on every response, burning ~500-800 tokens + SSH latency
+per turn. Removed two, fixed one.
+
+**Killed:**
+- `stop-quality-gate.sh` — blocked every turn when working tree was dirty, forced a
+  review cycle (~500 tokens of reminder + agent review response). The diff-hash dedup
+  helped prevent infinite loops but reset on any new edit. `/simplify` skill already
+  covers this at the right moment (on demand, not every turn).
+- `stop-memory-checkpoint.sh` — nagged about memory/artifacts on every stop. Redundant
+  with `post-commit-memory-sync` (fires on git commit), `session-end-summary` (fires on
+  session end), and CLAUDE.md Memory Protocol section. Three hooks doing "did you save
+  your memories?" is overkill.
+
+**Fixed:**
+- `session-end-summary.sh` — valuable work (Qdrant session log, Mattermost thread reply,
+  coordination deregister) but fired on every Stop event. Most runs wasted an SSH
+  round-trip to discover <5 calls and exit. Now checks `stop_hook_active` flag — only
+  runs on second stop (genuine session end), not mid-conversation responses.
+
+**Hooks that earned their keep (unchanged):**
+- `session-prewarm` — rehydration, the recall system itself
+- `pre-compact-capture` — compaction safety net
+- `search-before-act` — gotcha recall at moment of action
+- `pre-commit-lint` — targeted gate, only fires on `git commit`
+- `post-edit-complexity` — targeted gate, only outputs on threshold exceeded
+- `post-commit-memory-sync` — natural checkpoint at commit time
+
+**Design principle established:** Hook value test = does its benefit exceed its workflow
+cost in tokens + latency + context pollution? The memory system's effectiveness scales
+with agent discipline (rehydration quality, pattern-matching good memories), not with
+nagging hooks. If the user has to prompt "save this," the system failed — not the user.
+Matt's framing: memory is the exponential growth lever. Hooks serve recall and tracking
+silently. Compliance-style reminders cause mechanical behavior (see memory-system Entry 15).
+
+**Result:** Stop event went from 3 hooks (two blocking, one latency-adding) to 1 hook
+(non-blocking, properly scoped to session end). ~500-800 tokens recovered per response.
+
+**Evidence:** Artifact DB: `db_search "hooks-audit"`. Qdrant: search "hooks value audit
+stop-quality-gate 2026-03-29". Memory-system notebook Entry 15 (Context Briefing Layer)
+established the principle that compliance checks cause mechanical behavior — this entry
+applies that principle to hooks.
+
+---
+
+## Entry 7 -- feature-dev + Ralph Merge and Skills Value Audit (2026-03-30)
+
+**What:** Merged `ralph-workflow` (544 lines) into `feature-dev` (now 225 lines + 3
+reference files). Audited all 52 active skills for value. Archived ralph-workflow.
+
+**Why:** ralph-workflow was mostly instructions telling Claude to be disciplined — things
+Claude already does. The only genuine capability was the iterative pickup loop: PRD →
+story → progress → fresh context. Meanwhile, it spent ~100 lines fighting template drift
+in PROGRESS.md with canonical templates, "DO NOT copy from last entry" warnings, and
+validation scripts that regex-parsed markdown.
+
+The architectural insight: PROGRESS.md was doing three jobs badly instead of one job well.
+Split responsibilities by access pattern:
+- **Current state** (next story, blockers) → PROGRESS.md, ~10 lines, mutable
+- **Story completion history** → Artifact DB (`dev/story-complete`), schema-enforced
+- **Gotchas and lessons** → Qdrant memory, surfaces via rehydration
+
+This eliminates template drift architecturally — DB schema enforces structure, no
+instructions needed. Validation script queries DB with SQL instead of regex-parsing markdown.
+
+**feature-dev redesign:** Router pattern. Simple tasks → just do it. Medium → light plan.
+Complex → Ralph mode, which requires `project-organize` to have run first (GROUNDING.md
++ artifact DB must exist). On first Ralph init, feature-dev adds a Development Workflow
+section to GROUNDING.md documenting file contracts and DB schema so any future agent knows
+the setup.
+
+**Full suite audit results:** 39 skills add genuine capability, 7 were just instructions,
+6 were mixed. The bar: "does this encode a workflow or file contract Claude wouldn't
+produce from a one-line prompt?" Skills that define file contracts, tool integrations, or
+multi-step orchestration earn their place. Skills that say "be disciplined" waste context.
+
+**Result:** feature-dev is now 225 lines (under 300 limit) with 3 reference files
+(prd-schema.md, browser-verification.md, validation.md). ralph-workflow archived. Suite
+down from 52 to 50 active skills (ralph archived, research skills archived earlier).
+GROUNDING.md, CLAUDE.md, and cross-cutting rule 9 updated to reflect the merge.
+
+**Evidence:** Artifact DB: `db_search "feature-dev-ralph-merge"`, `db_search "full-suite-value-audit"`.
+Qdrant: search "feature-dev ralph merge architecture 2026-03-30".
+
+---
+
+## Entry 6 -- Research Pipeline Simplification (2026-03-30)
+
+**What:** Analyzed all 6 research skills, consolidated to 3. Created `/claude-light-research`
+(new). Kept `/claude-deep-research` + `/claude-deep-research-execute` unchanged. Deprecated
+4 skills to `skills/archive/`: `meta-research`, `research-execute`, `meta-deep-research`,
+`meta-deep-research-execute`.
+
+Also created comprehensive tools & skills reference docs (TOOLS-AND-SKILLS.md and updated
+Claude Skills Suite Reference.docx) covering all 35 MCP gateway modules, native Claude Code
+tools, Gmail integration, local MCP servers, and the full skills inventory.
+
+**Why:** Matt is porting a subset of skills to a simpler Docker container for Luke (automation
+engineer) and Elise (PM/test engineer at IBM). The multi-model research skills depend on
+Gemini CLI and Codex CLI — not portable. Analysis showed:
+
+- `meta-deep-research-execute` violates 4 cross-cutting rules (3, 4, 6, 10) due to external
+  CLI dependencies that frequently timeout or aren't installed
+- `research-execute` also depends on Gemini/Codex for its triple-counter phase
+- `claude-deep-research` already delivers identical output quality (VERIFIED/CONTESTED/
+  UNCERTAIN/DEBUNKED convergence scoring) with zero external dependencies
+- No "light" research option existed — gap between unstructured research and 15-worker
+  adversarial debate. `claude-light-research` fills this: Claude researches naturally with
+  artifact DB storage, no subagents, no debate
+
+**Key design decisions for claude-light-research:**
+1. **Standalone** — no separate executor skill. Light enough to run in-process.
+2. **No prescribed connector list** — uses whatever tools make sense for the question
+   (WebSearch, MCP connectors, WebFetch). Claude's natural judgment, not a dispatch table.
+3. **Artifact DB with graceful degradation** — stores findings to SQLite as it goes, falls
+   back to file-based findings log if sqlite3 unavailable.
+4. **L suffix** for folder numbering (e.g., `001L`) — distinguishes from deep research (`D`).
+5. **Escalation path** — offers `/claude-deep-research` at completion for topics that need it.
+
+**Research pipeline routing (after):**
+| Intent | Skill | Workers | Debate |
+|--------|-------|---------|--------|
+| Everyday research | `/claude-light-research` | 0 | None |
+| Exhaustive research | `/claude-deep-research` | ~15 | Steelman 2-model |
+
+**Also validated:** Project lifecycle skills (meta-init, meta-join, project-organize,
+project-context, evolve, notebook-init, todo-features) are complementary, not redundant.
+The composition hierarchy is clean — project-organize is the foundation, meta-init and
+meta-join both call it as their first step. Skill routing works via intent-based trigger
+descriptions, not keyword matching. Matt confirmed this works well in practice even with
+loose prompting.
+
+**Result:** Skills folder went from 60 to 57 active skills. Research pipeline went from 6
+skills (3 orchestrators + 3 executors) to 3 (2 orchestrators + 1 executor). Zero external
+CLI dependencies across the entire research pipeline. Interagent assignments #12 and #13
+sent with full findings for the Docker porting spec.
+
+**Evidence:** Git diff of this session. Qdrant: search "research pipeline simplification
+claude-light-research 2026-03-30". Interagent assignments #12 (project lifecycle) and #13
+(research pipeline).
+
+---
+
 <!-- New entries go above this line. Use the format:
 
 ## Entry N -- Title (YYYY-MM-DD)

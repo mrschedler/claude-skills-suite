@@ -5,15 +5,6 @@ description: Implement fixes from review findings. Parses findings, presents act
 
 # review-fix
 
-Takes review findings and turns them into implemented fixes. Parses findings,
-extracts actionable items, gets user approval, implements fixes, verifies.
-
-## When to use
-
-- After `/meta-review` or any individual review lens
-- User says "fix the issues", "implement the fixes"
-- Review findings exist and need to be acted on
-
 ## Inputs
 
 | Input | Source | Required |
@@ -91,23 +82,6 @@ If any fixes failed, recommend:
 - Fix manually
 - Re-run `/review-fix` after adjustments
 - Accept as known risks
-
-## Examples
-
-```
-User: [after meta-review] "Fix the issues"
-→ Parse findings. Present table. Wait for selection. Execute.
-```
-
-```
-User: "Fix only the critical and high severity items"
-→ Present all, pre-select CRITICAL+HIGH. Confirm. Execute.
-```
-
-```
-User: "That's a false positive, skip it"
-→ Remove from queue. Note in summary.
-```
 
 ---
 

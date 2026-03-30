@@ -5,13 +5,6 @@ description: Scans for stubs, TODOs, placeholders, empty bodies, and unfinished 
 
 # Completeness Review
 
-## Purpose
-
-Catch unfinished work. The most common failure in AI-assisted development: code that
-looks complete but contains stubs, placeholder values, TODO comments, empty error
-handlers, and functions returning hardcoded data. These slip through because they
-compile, don't crash on happy paths, and look real at a glance.
-
 ## Inputs
 
 - The full codebase

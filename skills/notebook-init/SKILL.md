@@ -58,8 +58,7 @@ Engineering Notebook if not asked or if the user doesn't specify.
    answer to write Entry 0. If GROUNDING.md already explains this, draft Entry 0
    from it and confirm with the user.
 
-6. Confirm creation with the user. Remind them: entries should be added during
-   work, not after — "write while the context is hot."
+6. Confirm creation with the user.
 
 ## Engineering Notebook Template
 

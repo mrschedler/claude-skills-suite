@@ -5,14 +5,6 @@ description: Audits dependency health: CVEs, outdated versions, license conflict
 
 # Dependency Audit
 
-## Purpose
-
-Assess dependency health beyond security vulnerabilities. security-review §3 catches
-supply chain *attacks* (hallucination, typosquatting, install scripts). This skill catches
-dependency *decay*: packages that are outdated, abandoned, license-incompatible, bloating
-the bundle, or approaching EOL. The question isn't "is this dangerous?" — it's "is this
-maintainable?"
-
 ## Inputs
 
 - Dependency manifests: `package.json`, `requirements.txt`, `pyproject.toml`, `go.mod`, `Cargo.toml`, `Gemfile`, `composer.json`, `pom.xml`

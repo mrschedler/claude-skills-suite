@@ -5,21 +5,6 @@ description: Full new-project workflow. Chains scaffold, interview, context, and
 
 # meta-init
 
-End-to-end project initialization. Takes a project from idea to approved build
-plan in one workflow.
-
-## When to use
-
-- Starting a brand new project
-- User says "new project", "let's build X from scratch", "initialize"
-- A directory exists but has no structure or context docs
-
-## Flow
-
-```
-project-questions → project-organize → build-plan
-```
-
 ## Instructions
 
 ### Step 1: Interview (`/project-questions`)
@@ -56,23 +41,6 @@ Project initialized:
 - Directory structure ready
 
 Next: /feature-dev to start building, or /meta-review after initial implementation.
-```
-
-## Examples
-
-```
-User: "I want to build a REST API for inventory management"
-→ Interview → Scaffold → Build plan → Present for approval.
-```
-
-```
-User: "New project, skip interview. FastAPI, PG, on Unraid."
-→ Scaffold with provided info → Offer project-context → Build plan.
-```
-
-```
-User: "I have code at C:\dev\my-app but no docs or plan"
-→ Skip scaffold → Interview → GROUNDING.md → Build plan for remaining work.
 ```
 
 ---

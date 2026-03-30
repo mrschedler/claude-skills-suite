@@ -5,20 +5,8 @@ description: Writes project-context.md, a comprehensive handoff document. Use af
 
 # project-context
 
-Write `project-context.md` — a comprehensive project context document that any
-agent can read to cold-start with zero additional context. This complements
-GROUNDING.md (which covers why and constraints) with deeper technical detail
-(architecture, structure, state).
-
-If a project already has a thorough GROUNDING.md, project-context.md may not
-be needed. Use this when the project's technical complexity warrants a separate,
-detailed reference doc.
-
-## When to use
-
-- After a `project-questions` interview, to capture the depth
-- A project exists but lacks comprehensive technical context
-- An existing project-context.md is stale and needs a full rewrite
+Write `project-context.md` — a technical reference doc complementing GROUNDING.md
+with architecture, structure, and current state detail.
 
 ## Inputs
 

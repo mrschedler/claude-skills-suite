@@ -6,43 +6,27 @@ description: "Organizes any project — new or existing — with GROUNDING.md, e
 # project-organize
 
 Get any project to the point where a cold-start agent can be productive in
-under 2 minutes. Works on empty directories, existing repos with no docs,
-and mature projects that have accumulated drift. Detects what exists, creates
-what's missing, fixes what's stale.
-
-This skill replaces `/project-scaffold` (new projects) and `/clean-project`
-(audit/tidy) with a single command that handles both cases.
-
-## When to use
-
-- Starting a new project
-- Existing project has no GROUNDING.md
-- Project docs are stale or conflicting
-- User says "organize", "scaffold", "clean up", "set up the project"
-- A new agent can't figure out what the project is from the repo alone
+under 2 minutes. Detects what exists, creates what's missing, fixes what's stale.
 
 ## What it creates
 
-Every project gets these two files (the minimum viable onboarding):
+Every project gets these two files (minimum viable onboarding):
 
-| File | Purpose | Question it answers |
-|------|---------|-------------------|
-| **GROUNDING.md** | WHY — product context, decisions, constraints, anti-patterns | "Why does this exist and what will hurt if I get it wrong?" |
-| **CLAUDE.md** | QUICKSTART — reading order, access patterns, guardrails | "How do I get started in 30 seconds?" |
+| File | Purpose |
+|------|---------|
+| **GROUNDING.md** | WHY — product context, decisions, constraints, anti-patterns |
+| **CLAUDE.md** | QUICKSTART — reading order, access patterns, guardrails |
 
-These are created if the project warrants them:
+Created if the project warrants them:
 
-| File | Purpose | When to create |
-|------|---------|---------------|
-| **ENGINEERING-NOTEBOOK.md** | JOURNEY — what was tried, failed, learned | Projects with significant design history (hardware, multi-sprint, exploratory) |
-| **project-context.md** | WHAT/HOW — architecture, tech stack, glossary | Technically complex projects (multiple services, non-obvious architecture) |
-| **CURRENT-STATE.md** | NOW — deployed state, known issues | Projects with live devices or deployed infrastructure |
-| **PLAN-*.md** | WHAT'S NEXT — task list, phases | Projects with active development roadmaps |
+| File | When to create |
+|------|---------------|
+| **ENGINEERING-NOTEBOOK.md** | Projects with significant design history (hardware, multi-sprint, exploratory) |
+| **project-context.md** | Technically complex projects (multiple services, non-obvious architecture) |
+| **CURRENT-STATE.md** | Projects with live devices or deployed infrastructure |
+| **PLAN-*.md** | Projects with active development roadmaps |
 
-Files this skill does NOT create (per cross-cutting rule 2):
-- coterie.md, cnotes.md, todo.md, features.md (framework-specific litter)
-- project-plan.md (use `/build-plan` or the project pipeline)
-- prd.json, progress.txt (use `/feature-dev` or `/ralph-workflow`)
+Does NOT create: coterie.md, cnotes.md, todo.md, features.md, project-plan.md, prd.json, progress.txt (per cross-cutting rule 2).
 
 ## Inputs
 
@@ -117,16 +101,8 @@ git log --format="%ad %s" --date=short | head -1   # project start date
 
 #### 1.6 Classify the project
 
-Based on discovery, determine:
-
-| Question | Determines |
-|----------|-----------|
-| Is the directory empty or near-empty? | Create skeleton vs. organize existing |
-| Is there significant design history? | Create ENGINEERING-NOTEBOOK.md |
-| Is the architecture non-obvious? | Create project-context.md |
-| Are there live devices or deployments? | Create CURRENT-STATE.md |
-| Is there a pipeline entry? | Reference it in CLAUDE.md or create one |
-| Are there stale docs that conflict with reality? | Plan fixes in Phase 3 |
+Determine: empty vs. existing, needs notebook?, needs project-context?, needs
+CURRENT-STATE?, has pipeline entry?, has stale docs?
 
 Present the classification to the user:
 > "Project assessment:
@@ -290,14 +266,7 @@ Present findings with severity levels. Ask before executing changes.
 
 ## Adapting to project type
 
-| Project Type | Likely Needs | Likely Skips |
-|-------------|-------------|-------------|
-| Hardware + firmware | GROUNDING, notebook, CURRENT-STATE, project-context | — |
-| Web app (greenfield) | GROUNDING, CLAUDE.md, .gitignore | notebook, CURRENT-STATE |
-| Web app (existing) | GROUNDING, stale doc fixes | skeleton directories |
-| Homelab infrastructure | GROUNDING, CURRENT-STATE | notebook, project-context |
-| Patent / legal | GROUNDING (careful about content boundaries) | CURRENT-STATE |
-| Data pipeline | GROUNDING, project-context | notebook |
+Read `references/type-adaptations.md` for type-specific guidance.
 
 ## Exit condition
 
@@ -307,30 +276,6 @@ Present findings with severity levels. Ask before executing changes.
 - No stale docs send agents to pursue wrong-era work
 - .gitignore covers generated/ephemeral content
 - All changes committed and pushed
-
-## Examples
-
-```
-User: "Organize this project"
-→ Full Phase 1-5. Discover, create missing docs, fix stale ones, audit, commit.
-```
-
-```
-User: "New project for a FastAPI service"
-→ Empty directory detected. Create skeleton + GROUNDING.md + CLAUDE.md + .gitignore.
-  Offer notebook and project-context. Skip audit (nothing to audit).
-```
-
-```
-User: "This project is a mess, clean it up"
-→ Full audit emphasis. GROUNDING.md likely missing — create it first so the
-  audit has context. Then fix stale docs and structural issues.
-```
-
-```
-User: "Add grounding to my existing project"
-→ Phase 1 discovery + Phase 2.1 GROUNDING.md only. Skip audit unless user asks.
-```
 
 ---
 
