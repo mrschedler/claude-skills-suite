@@ -79,17 +79,22 @@ When creating a new project (repo or pipeline entry), create a GROUNDING.md cove
 4. **Commercial model.** Who pays, how it creates value.
 GROUNDING.md explains WHY. Procedural docs (PROGRESS.md, ARCHITECTURE.md) explain WHAT/HOW.
 
-### Session-Start Background Hygiene
-After rehydrate, if project has GROUNDING.md or pipeline entry, evaluate: does this session warrant a background hygiene subagent? Skip for trivial/quick sessions.
+### Session-Start Hygiene Agent
+After rehydrate, if project has GROUNDING.md or pipeline entry, spawn a background subagent. Skip for trivial/quick sessions.
 
-Spawn background agent when warranted:
-- `memory_call > search` filtered to last 7 days for same topic (recency pass — semantic search under-ranks recent work)
+Gate: Check artifact DB for `last-hygiene` record. If <24h old and no new commits since, skip.
+
+Subagent scope (project memories only, not global):
+- `memory_call > search` by project tags/category — pull this project's memories
+- `memory_call > search` filtered to last 7 days for same topic (recency pass)
+- Compare key claims against current state (GROUNDING.md, pipeline, artifact DB)
+- `memory_call > supersede` memories that contradict current known state. Preserve chain.
+- Audit never-retrieved memories (retrieval_count=0, age >30d). Evaluate relevance — supersede or leave.
 - Check engineering notebook for TOC block; flag if missing/stale
-- Search Qdrant for this project's memories that contradict current known state
 
-Constraints:
-- Read-heavy, minimal writes. Maintenance scope — not user-task findings.
-- Report only if actionable. No output = nothing found.
+Write authority: supersede, consolidate within project scope. NOT delete. NOT store user-task findings.
+Diminishing cost: First pass expensive, subsequent passes find less. Store `last-hygiene` timestamp + findings count to artifact DB.
+Report: Only if actionable. No output = nothing found.
 
 ### After Significant Work
 If the session produced decisions, architecture changes, gotchas, or blockers — store them. The Think Before Storing criteria apply: store what a future session needs, capture the WHY, and check for duplicates first. Don't store mechanically; store thoughtfully.
