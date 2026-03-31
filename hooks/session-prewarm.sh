@@ -58,6 +58,14 @@ case "$PWD_NORM" in
     PROJECT="MCP Gateway"
     NOTE_PATH="$VAULT/Homelab/MCP Gateway.md"
     ;;
+  */memory-system*)
+    PROJECT="Memory System"
+    NOTE_PATH="$VAULT/Homelab/Projects/Memory System.md"
+    ;;
+  */claude-skills-suite*)
+    PROJECT="Skills Suite"
+    NOTE_PATH=""
+    ;;
   *)
     # No project match — still useful to echo working dir context
     PROJECT="general"
@@ -77,8 +85,13 @@ if [[ -n "$NOTE_PATH" && -f "$NOTE_PATH" ]]; then
   echo "--- end note ---"
 fi
 
-# ── Artifact DB awareness ──
+# ── Project structure check ──
 GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || echo "")
+if [[ -n "$GIT_ROOT" ]] && [[ ! -f "$GIT_ROOT/GROUNDING.md" ]]; then
+  echo "NO GROUNDING.md FOUND. Run /project-organize before starting work."
+fi
+
+# ── Artifact DB awareness ──
 if [[ -n "$GIT_ROOT" ]]; then
   DB_PATH="$GIT_ROOT/artifacts/project.db"
   if [[ -f "$DB_PATH" ]]; then
@@ -117,6 +130,17 @@ prewarm_gateway() {
         curl -s --max-time 5 \$HDR -H \"mcp-session-id: \$SID\" \"\$GW\" -d @-
     " 2>/dev/null
   }
+
+  # Check interagent inbox for assignments from other machines
+  local INBOX_B64=$(python3 -c "
+import json, base64, sys
+p = {'jsonrpc': '2.0', 'method': 'tools/call', 'params': {'name': 'interagent_call', 'arguments': {'tool': 'inbox', 'params': {'machine': sys.argv[1]}}}, 'id': 7}
+print(base64.b64encode(json.dumps(p).encode()).decode())
+" "$MACHINE_NAME" 2>/dev/null) || true
+  local RAW_INBOX=""
+  if [[ -n "$INBOX_B64" ]]; then
+    RAW_INBOX=$(_mcp_call "$INBOX_B64") || true
+  fi
 
   # Check for ready agent tasks
   local TASK_B64=$(echo -n '{"jsonrpc":"2.0","method":"tools/call","params":{"name":"task_call","arguments":{"tool":"next","params":{"executor":"agent"}}},"id":2}' | base64 -w 0)
@@ -218,6 +242,27 @@ session_id = sys.argv[4] if len(sys.argv) > 4 else 'unknown'
 raw_root = sys.argv[5] if len(sys.argv) > 5 else ''
 mm_channel = sys.argv[6] if len(sys.argv) > 6 else 'agent-activity'
 raw_channel = sys.argv[7] if len(sys.argv) > 7 else ''
+raw_inbox = sys.argv[8] if len(sys.argv) > 8 else ''
+
+# Interagent inbox — assignments from other machines
+if raw_inbox:
+    try:
+        outer = json.loads(raw_inbox)
+        inner_text = outer['result']['content'][0]['text']
+        inner = json.loads(inner_text)
+        assignments = inner.get('assignments', [])
+        count = inner.get('count', len(assignments))
+        if count > 0:
+            print(f'*** INTERAGENT INBOX: {count} assignment(s) pending ***')
+            for a in assignments:
+                title = a.get('title', 'untitled')
+                frm = a.get('from_agent', '?')
+                priority = a.get('priority', 'normal')
+                aid = a.get('id', '?')
+                print(f'  [{priority}] #{aid}: {title} (from {frm})')
+            print(f'  (use interagent_call > claim to pick up)')
+    except Exception:
+        pass
 
 if raw_task:
     try:
@@ -326,7 +371,7 @@ if raw_channel:
                 print(f'  [{user}] {msg}')
     except Exception:
         pass
-" "$RAW_TASK" "$RAW_SESSIONS" "$RAW_COORD" "$SESSION_ID" "$RAW_ROOT_POST" "$MM_CHANNEL" "$RAW_CHANNEL" 2>/dev/null) || true
+" "$RAW_TASK" "$RAW_SESSIONS" "$RAW_COORD" "$SESSION_ID" "$RAW_ROOT_POST" "$MM_CHANNEL" "$RAW_CHANNEL" "$RAW_INBOX" 2>/dev/null) || true
 
   if [[ -n "$OUTPUT" ]]; then
     echo ""
