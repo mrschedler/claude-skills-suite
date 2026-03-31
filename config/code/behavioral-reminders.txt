@@ -1,4 +1,4 @@
-SESSION START: (1) gateway_call > rehydrate {topic, project_slug} (2) Check pending tasks if not in rehydrate results
+SESSION START: (1) gateway_call > rehydrate {topic, project_slug} (2) Check pending tasks if not in rehydrate results (3) If GROUNDING.md or pipeline entry exists, spawn background hygiene agent (skip if last-hygiene <24h in artifact DB)
 
 BEFORE NEO4J/QDRANT OPS: Search "[tool] gotcha" first.
 

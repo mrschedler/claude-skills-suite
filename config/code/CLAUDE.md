@@ -65,9 +65,10 @@ Do NOT use `~/.claude/projects/*/memory/` files. MEMORY.md is bootstrap index on
 `mattermost_call` — LAN-only, backup cron notifications only. NOT for project/patent content.
 
 ### Session Rehydration
-1. `gateway_call` > `rehydrate` {topic, project_slug} — memories + project + sprints + unanswered + graph + preferences in one call
-2. Check interagent inbox: `interagent_call` > `inbox` {machine: "<your .machine-id name>"} — pending assignments from other agents. Claim with `claim`, complete with `complete`.
-3. Individual calls only for deeper drill-down
+1. `gateway_call` > `rehydrate` {topic, project_slug}
+2. `interagent_call` > `inbox` {machine: "<your .machine-id name>"}
+3. Background hygiene agent if GROUNDING.md or pipeline entry exists. Skip if artifact DB `last-hygiene` <24h.
+4. Individual calls only for deeper drill-down
 
 ### New Project Setup
 If session-prewarm reports `NO GROUNDING.md FOUND`, run `/project-organize` before other work.
