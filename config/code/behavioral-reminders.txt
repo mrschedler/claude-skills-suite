@@ -23,7 +23,7 @@
 | behavioral-reminders.txt | structured, terse | this file |
 | CLAUDE.md | tables, bullets | no paragraphs |
 | GROUNDING.md | decision tables, key facts | not narrative |
-| ENGINEERING-NOTEBOOK.md | structured entries | facts, decisions, evidence |
+| ENGINEERING-NOTEBOOK.md | structured entries | date=, type=, tables for changes/decisions/why/impact, evidence |
 | Obsidian notes | human prose OK | human is primary reader |
 | Qdrant memories | self-contained narrative | semantic search needs context |
 

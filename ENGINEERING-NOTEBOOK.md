@@ -414,17 +414,32 @@ claude-light-research 2026-03-30". Interagent assignments #12 (project lifecycle
 
 ---
 
-<!-- New entries go above this line. Use the format:
+<!-- New entries go above this line.
 
-## Entry N -- Title (YYYY-MM-DD)
+TEMPLATE:
 
-**What:** What was done or decided.
+## Entry N -- Title
 
-**Why:** Why this approach was chosen. What alternatives were considered.
+date=YYYY-MM-DD
+type=redesign|decision|finding|experiment|audit|fix
 
-**Result:** What happened. Did it work? What was learned?
+**Changes:**
+| What | Before → After | Detail |
 
-**Evidence:** Git SHAs, Qdrant search hints (not UUIDs -- IDs break on migration), file refs.
+**Decisions:**
+| Decision | Alternatives rejected | Reason |
 
----
+**Why:**
+| Driver | Before | After |
+
+**Impact:**
+| Target | Effect |
+
+**Evidence:** Qdrant search hint, git ref, artifact DB record
+
+RULES:
+- Not all sections required. Use what fits.
+- Tables > prose. Key facts > narrative.
+- date and type fields are always required.
+- Evidence must include a Qdrant search hint (not UUIDs — break on migration).
 -->
