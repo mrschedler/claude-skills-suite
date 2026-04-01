@@ -25,6 +25,42 @@ This project solves the cold-start problem at the **skill layer**. Skills are re
 
 5. **Windows + Git Bash environment.** All shell commands must work on Windows 11 with Git Bash. No macOS paths, no Homebrew, no `gtimeout`, no `zsh`.
 
+## Cross-Project Impact (Butterfly Wings)
+
+| Amplification layer | Mechanism | Blast radius |
+|---------------------|-----------|-------------|
+| Local machines | Syncthing sync | dell-xps, skip — all dev machines |
+| Per session | hooks + skills load every session | 10+ active projects, thousands of sessions |
+| Downstream users | personal-ai-kit pulls from this repo | Luke, Elise, eventually Lee, Heather |
+
+**Consequence:** 1-line change to hook/skill/behavioral-reminder → silently affects entire fleet.
+
+### Hook Categories
+
+| Category | Execution | Constraint |
+|----------|-----------|-----------|
+| Local (bash) | GROUNDING check, artifact DB, SSH reminders, git lint, complexity, pre-compact | <2s, offline-safe, no side effects |
+| Gateway (agent-native MCP) | rehydration, interagent, coordination, mattermost, memory ops | graceful degradation if gateway unreachable |
+
+**No infrastructure topology in hooks.** No SSH hosts, no docker inspect, no container IPs. Transport = mcp.json.
+
+### Instruction Files
+
+| File | Scope | Role |
+|------|-------|------|
+| `behavioral-reminders.txt` | all agents | behavioral protocol, hook-injected. highest-amplification file in repo. |
+| `CLAUDE.md` (global) | Claude Code | infrastructure, workspace. Claude-specific only. |
+| `GROUNDING.md` (this file) | this project | WHY, decisions, constraints, blast radius |
+| `ENGINEERING-NOTEBOOK.md` | this project | journey log, decisions over time |
+
+### Downstream Update Protocol
+
+| Project | Impact | On change here |
+|---------|--------|---------------|
+| personal-ai-kit | pulls hooks + skills | test against kit mcp.json before merge |
+| memory-system | docs reference hook architecture | update memory-system GROUNDING + notebook |
+| all GROUNDING.md projects | hooks fire, behavioral-reminders apply | changes are immediately live everywhere |
+
 ## Key Decisions
 
 | Decision | Alternatives Considered | Why This One |
@@ -120,7 +156,7 @@ Qdrant: search "skill suite simplification plan 2026-03-25"
 
 5. **DO NOT make skills exceed 300 lines.** Move overflow to `references/`. Cross-cutting rule 7.
 
-6. **DO NOT break feature-dev or ralph-workflow.** These are established daily-driver skills. New skills complement them; they do not replace them without explicit approval. Cross-cutting rule 9.
+6. **DO NOT break feature-dev.** This is the established daily-driver development skill (includes Ralph mode for multi-session iterative work). New skills complement it; they do not replace it without explicit approval. Cross-cutting rule 9.
 
 7. **DO NOT hardcode model names in skill logic.** Skills describe tasks; the executing agent chooses how to delegate.
 
