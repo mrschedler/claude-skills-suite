@@ -7,15 +7,6 @@ argument-hint: ""
 
 # Init DB
 
-Bootstrap the skill suite artifact store for the current project.
-
-## What it does
-
-1. Creates `artifacts/` directory (and subdirs) if they don't exist
-2. Copies `db.sh` from the skill suite references if `artifacts/db.sh` is missing
-3. Runs `db_init` to create `artifacts/project.db` with the correct schema
-4. Verifies the DB is usable
-
 ## Instructions
 
 Run the following steps in order. Use the Bash tool for all commands.

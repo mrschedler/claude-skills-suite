@@ -5,14 +5,6 @@ description: Scans for N+1 queries, missing indexes, memory leaks, O(n²) loops,
 
 # Performance Review
 
-## Purpose
-
-Find performance problems before users do. This skill scans for common performance
-anti-patterns across backend, frontend, and database layers. AI-generated code frequently
-introduces N+1 queries, unbounded allocations, and O(n²) loops that pass functional tests
-but collapse under load. This skill catches what profilers would find — without needing
-to run the app.
-
 ## Inputs
 
 - The full codebase

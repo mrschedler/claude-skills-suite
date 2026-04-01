@@ -30,6 +30,6 @@ These rules apply to every skill in this suite. Every SKILL.md must follow them.
 
 8. **Memory sync after significant work** — If a skill produces decisions, findings, or state changes worth remembering across sessions, persist them. Agents with MCP Gateway access should store to Qdrant (`memory_call` > `store`). Agents without it should note findings in their output for the user to capture.
 
-9. **Respect existing skills** — `feature-dev` and `ralph-workflow` are established development workflows. New skills complement them. Do not duplicate their functionality without clear added value.
+9. **Respect existing skills** — `feature-dev` is the established development workflow (includes Ralph mode for iterative multi-session work). New skills complement it. Do not duplicate its functionality without clear added value.
 
 10. **Driver skill boundary** — If external CLIs are added, consuming skills reference the driver skill for invocation details. Consuming skills specify: task type, prompt/context, expected output, fallback behavior. They do NOT embed CLI commands, flags, or path resolution.

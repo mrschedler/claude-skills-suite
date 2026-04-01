@@ -5,15 +5,8 @@ description: "Creates an isolated sub-project workspace within a parent project 
 
 # Sub-Project
 
-Partitions a parent project into a focused sub-workspace so Claude operates
-within a lean, high-quality context instead of degrading across a bloated one.
-Quality at 100K tokens is fundamentally different from quality at 500K — this
-skill exists to keep every session in the high-accuracy zone.
-
-**Context-window strategy**: Non-interactive phases delegate to subagents.
-The discovery interview (Phase 2) stays inline. Each subagent reads its own
-instructions from `agents/` — never load reference files into main context
-unless explicitly needed.
+Creates an isolated sub-workspace within a parent project. See
+`references/context-strategy.md` for rationale and merge-back guidance.
 
 ## Inputs
 
@@ -265,57 +258,10 @@ Present the summary:
 
 ## Error Handling
 
-- If parent has no `project-context.md`, warn and proceed — the analyzer and
-  interview must compensate.
-- If parent has no `architecture.md`, the distiller works from analyzer output
-  and `project-context.md` alone.
-- If symlink creation fails (Windows, permissions), fall back to copy with a
-  warning: "Symlink failed — copied instead. This copy will NOT auto-update."
-- If the analyzer subagent fails, fall back to the interview for all context
-  gathering. Skip Phase 1 findings presentation.
-
-## Merge-Back Guidance
-
-When the sub-project is complete and ready to merge back:
-
-1. Run integration tests from the parent root
-2. Check for convention drift (run `/compliance-review` from parent)
-3. Update parent's `project-plan.md` to reflect completed work
-4. Remove worktree if used: `git worktree remove <path>`
-5. Clean up the sub-project branch if merged
-
-This guidance is documented in the sub-project's `architecture.md` under
-"Known Constraints" so future sessions have it.
-
-## Examples
-
-```
-User: "/sub-project auth-service — build the authentication microservice"
-Action: Detect parent pattern. Analyze parent for auth-related modules.
-        Interview for constraints. Scaffold auth-service/. Distill
-        architecture.md with auth focus. Generate build-plan. Present.
-```
-
-```
-User: "/sub-project frontend-redesign --worktree"
-Action: Full flow with git worktree isolation. Branch sub/frontend-redesign.
-        Distill architecture.md with frontend focus. Transfer relevant
-        UI research.
-```
-
-```
-User: "I need to break out the payment processing into its own context"
-Action: Detect trigger. Create sub-project for payment processing.
-        Heavy emphasis on API surface and cross-cutting concerns (auth,
-        logging, DB schema for transactions).
-```
-
-```
-User: "/sub-project api-v2 — rewrite the REST API to GraphQL"
-Action: Analyze existing REST endpoints. Distill architecture.md with
-        full API surface documentation. Generate build-plan for
-        migration work units. Transfer API-related research.
-```
+- **No project-context.md**: Warn and proceed — analyzer + interview compensate.
+- **No architecture.md**: Distiller works from analyzer output + project-context.md.
+- **Symlink failure** (Windows/permissions): Copy with warning that it won't auto-update.
+- **Analyzer subagent failure**: Fall back to interview for all context gathering.
 
 ---
 

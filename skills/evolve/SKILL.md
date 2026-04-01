@@ -125,10 +125,6 @@ After both phases complete:
 
 3. **Present summary**: files modified, fields updated, work units affected, research incorporated, inconsistencies resolved.
 
-## Why This Format
-
-project-context.md and project-plan.md serve two audiences each: someone who wants current state (reads the body) and someone who wants the decision trail (reads the changelog). Edit-in-place keeps the body authoritative. Changelog-as-diff preserves history without cluttering the body.
-
 ## Examples
 
 ```

@@ -6,14 +6,6 @@ disable-model-invocation: true
 
 # Test Gen
 
-## Purpose
-
-Close the gap between finding test problems and fixing them. test-review identifies
-coverage gaps, stub tests, and missing error paths — but generating good tests requires
-domain-specific strategy: fixture design, edge case enumeration, framework idioms, and
-avoiding the exact LLM test anti-patterns that test-review catches. This skill generates
-tests that would pass test-review's scrutiny.
-
 ## Inputs
 
 - test-review findings from the artifact DB (if available):
@@ -101,14 +93,7 @@ Fill in all placeholders before spawning:
 
 Read `agents/test-worker.md` for the full prompt template.
 
-**Quality guardrails** — every generated test must:
-- Assert behavior, not implementation (no testing private methods)
-- Use meaningful assertions (no `toBeDefined`, `toBeTruthy` on objects)
-- Include at least one error/edge case test per function
-- Match the project's existing test conventions exactly
-- Not duplicate existing test coverage
-- Avoid all anti-patterns from test-review's `references/llm-test-antipatterns.md`:
-  no magic numbers, no asserting mock return values, no hallucinated APIs
+Validate every generated test against `references/test-gen-checklist.md` before writing.
 
 ### 5. Run Tests
 

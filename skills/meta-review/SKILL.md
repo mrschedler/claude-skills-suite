@@ -5,16 +5,6 @@ description: Runs multiple review lenses in parallel and synthesizes findings. U
 
 # meta-review
 
-Orchestrates multiple review lenses and synthesizes their findings into a
-unified assessment. This is the "run all the checks" skill.
-
-## When to use
-
-- Before production deployment
-- After completing a major feature or phase
-- User says "full review", "review everything", "is this ready?"
-- When thorough quality assessment is needed beyond a single lens
-
 ## Inputs
 
 | Input | Source | Required |

@@ -6,49 +6,25 @@ argument-hint: "[sub-project path or name]"
 
 # Sub-Project Merge
 
-Merges a completed sub-project back into its parent project — research artifacts,
-documents, artifact DB records, source files, and all. Generates a merge-specific
-plan at runtime, presents it for approval, then executes in safety-tiered batches
-so nothing is lost or overwritten without confirmation.
-
-This skill exists because sub-projects accumulate their own research numbering,
-features, plan entries, and artifact DB records that must be reconciled with the
-parent's state. Manual merging is error-prone — renumbering alone requires scanning
-both trees, remapping folder names, summary files, internal references, and DB
-labels. This skill automates all of it.
-
-**Context-window strategy**: Only Phases 0, 2, 3, and 6 stay inline (detection,
-merge plan generation, approval gate, destructive confirmation). All heavy work
-delegates to subagents.
+Merges a completed sub-project back into its parent — research artifacts,
+documents, artifact DB records, source files. Generates a merge plan, presents
+for approval, then executes in safety-tiered batches.
 
 ## Inputs
 
-| Input | Source | Required |
-|---|---|---|
-| Sub-project path | User prompt or auto-detect | Yes |
-| Parent project root | cwd or inferred from symlinks | Yes |
-| Sub-project `architecture.md` | Sub-project root | Yes (Section 11: Parent Modifications) |
-| Sub-project `features.md` | Sub-project root | Yes |
-| Sub-project `build-plan.md` | Sub-project root | Yes |
-| Sub-project `project-context.md` | Sub-project root | No |
-| Sub-project `todo.md` | Sub-project root | No |
-| Sub-project `cnotes.md` | Sub-project root | No |
-| Parent `features.md` | Parent root | Yes |
-| Parent `project-plan.md` | Parent root | Yes |
-| Parent `project-context.md` | Parent root | No |
+**Required from sub-project**: path (or auto-detect), `architecture.md` (Section 11), `features.md`, `build-plan.md`.
+**Optional from sub-project**: `project-context.md`, `todo.md`, `cnotes.md`.
+**Required from parent**: root path (cwd or inferred), `features.md`, `project-plan.md`.
+**Optional from parent**: `project-context.md`.
 
 ## Outputs
 
-- **`merge-plan.md`** in the sub-project directory — runtime-generated merge plan
-  with inventory, renumbering map, document diffs, conflict list, risk assessment
-- **Updated parent docs**: `features.md`, `project-plan.md`, `project-context.md`,
-  `todo.md`, `cnotes.md` — reconciled with sub-project state
-- **Renumbered research**: sub-project research artifacts moved to parent with
-  correct sequential numbering
-- **Merged artifact DB**: sub-project records inserted into parent `project.db`
-  with `sub:<name>/` namespace prefix
-- **Archived sub-project**: moved to `artifacts/archived-sub-projects/<name>/`
-- **DB record**: `db_upsert 'sub-project-merge' 'merge' '<sub-project-name>' "$SUMMARY"`
+- `merge-plan.md` — runtime merge plan (inventory, renumbering map, diffs, conflicts, risk)
+- Updated parent docs reconciled with sub-project state
+- Renumbered research artifacts in parent
+- Merged artifact DB with `sub:<name>/` namespace prefix
+- Archived sub-project at `artifacts/archived-sub-projects/<name>/`
+- DB record: `db_upsert 'sub-project-merge' 'merge' '<name>' "$SUMMARY"`
 
 ## Instructions
 
@@ -161,23 +137,9 @@ Write all of the above to `<sub-project>/merge-plan.md`.
 
 ### Phase 3: User Approval Gate [Inline]
 
-Present the merge plan to the user. Show:
-
-> **Merge Plan: `<name>` → parent**
->
-> **Risk**: LOW / MEDIUM / HIGH
-> **Research to renumber**: N folders (001D→010D, 002→011, ...)
-> **Features to merge**: N (X done, Y in-progress)
-> **Code files to transfer**: N files
-> **Artifact DB records**: N records
-> **Conflicts detected**: N (list if any)
->
-> Review the full plan at `<sub-project>/merge-plan.md`.
-> Proceed? (yes / modify / abort)
-
-If "modify" — ask what to change, regenerate affected sections.
-If "abort" — exit cleanly.
-If "yes" — proceed to Phase 4.
+Present merge plan summary: risk level, research to renumber, features to merge,
+code files to transfer, DB records, conflicts. Point to `merge-plan.md` for detail.
+Options: yes (proceed) / modify (regenerate sections) / abort.
 
 **Exit condition**: User explicitly approves the merge.
 
@@ -265,25 +227,8 @@ resolved). Subagent output verified.
 
 ### Phase 6: Destructive Cleanup [Inline — Requires Confirmation]
 
-Present the cleanup plan and get explicit confirmation:
-
-> **Ready to clean up. These actions are destructive:**
->
-> **Batch A (safe — no data loss):**
-> - Remove symlinks: coterie.md, [lint configs], artifacts/db.sh
->
-> **Batch B (archive — data preserved):**
-> - Archive sub-project to `artifacts/archived-sub-projects/<name>/`
->
-> **Batch C (destructive — worktree only):**
-> - `git worktree remove <path>`
-> - `git branch -d sub/<name>` (only if fully merged)
->
-> Proceed with cleanup? (yes / keep-sub-project / abort)
-
-If "keep-sub-project" — skip Batch B and C, only run Batch A (symlink removal).
-If "abort" — leave everything as-is.
-If "yes":
+Present cleanup in 3 batches, get explicit confirmation.
+Options: yes / keep-sub-project (Batch A only) / abort.
 
 **Batch A**: Remove all symlinks in the sub-project directory. These point to
 parent files that still exist — removing the link is safe.
@@ -324,59 +269,14 @@ source artifacts/db.sh
 db_upsert 'sub-project-merge' 'merge' '<sub-project-name>' "$SUMMARY"
 ```
 
-Present the summary:
-> **Merge complete: `<name>` → parent**
->
-> - **Research renumbered**: 001D→010D, 002→011 (N folders)
-> - **Features merged**: N features (X done, Y in-progress)
-> - **Plan updated**: N work units marked complete
-> - **DB records transferred**: N records under `sub:<name>/` namespace
-> - **Code files transferred**: N files (M conflicts resolved)
-> - **Archived to**: `artifacts/archived-sub-projects/<name>/`
->
-> Suggested follow-ups:
-> - `/compliance-review` — verify parent conventions after merge
-> - `/drift-review` — check docs match current code state
-> - `/evolve` — update project-context.md if scope changed
+Present summary: research renumbered, features merged, plan updated, DB records transferred, code files transferred, archive location. Suggest follow-ups: `/compliance-review`, `/drift-review`, `/evolve`.
 
 Log to `cnotes.md` per cross-cutting rules.
 
 ## References (on-demand)
 
-Read these files only when needed for the relevant phase:
-- `references/merge-checklist.md` — exhaustive merge checklist with action, risk level, and rollback step for every operation. Used in Phase 2 when generating merge-plan.md.
-- `references/renumbering-protocol.md` — step-by-step research artifact renumbering rules including edge cases (no research, gaps, D vs non-D, internal cross-refs). Used in Phase 2.1 and Phase 4.2.
-
-## Examples
-
-```
-User: "/sub-project-merge auth-service"
-→ Detect auth-service/ subdirectory. Scan. Generate merge plan showing 2 research
-  folders to renumber (001D→010D, 002→011), 4 features to merge (3 done, 1 in-progress),
-  6 source files to transfer. User approves. Merge docs, renumber research, transfer
-  code, archive sub-project.
-```
-
-```
-User: "Merge the payment sub-project back"
-→ Detect payment/ with worktree mode (git worktree list shows sub/payment). Scan.
-  Generate merge plan. Execute: doc merge, research renumber, DB merge. Cleanup:
-  git merge sub/payment, git worktree remove, git branch -d. Archive.
-```
-
-```
-User: "/sub-project-merge frontend-redesign --keep"
-→ Full merge but skip Batch B/C cleanup. Sub-project directory stays in place.
-  Symlinks removed. Useful for long-running sub-projects that aren't done yet
-  but have deliverables ready to merge.
-```
-
-```
-User: "I finished the API rewrite sub-project, merge it in"
-→ Auto-detect sub-project. Scanner finds 0 research folders, 8 features all done,
-  12 source files, HIGH risk (modifies shared types). Merge plan flags 2 conflicts
-  in parent types/. User resolves inline. Clean merge.
-```
+- `references/merge-checklist.md` — merge checklist for Phase 2
+- `references/renumbering-protocol.md` — renumbering rules for Phase 2.1 and Phase 4.2
 
 ---
 

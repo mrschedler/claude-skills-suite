@@ -5,12 +5,6 @@ description: "Join an existing project. Supports full onboard (7 steps) or quick
 
 # meta-join
 
-## Purpose
-
-Cold-start or warm-restart into an existing project. Ensures the project has
-the standard structure, a repo, all skill suite files, up-to-date docs, and
-a current build plan.
-
 **Context-window strategy**: See `references/meta-skill-guards.md`.
 
 ## Chain
@@ -19,11 +13,7 @@ a current build plan.
 project-organize -> repo-create -> meta-review -> sync-skills
     -> project-questions -> project-context -> build-plan
 
-Delegation key:
-  [S] = subagent   — runs out of main context
-  [I] = inline     — requires user interaction, stays in main thread
-  [D] = self-delegating — already dispatches its own subagents
-
+Keys: [S]=subagent  [I]=inline (interactive)  [D]=self-delegating
   organize[S] -> repo-create[I] -> meta-review[D] -> sync-skills[S]
       -> project-questions[I] -> project-context[I] -> build-plan[S]
 ```
@@ -165,15 +155,6 @@ Review the subagent's summary. Read `project-plan.md` and present to the
 user for approval.
 
 Start from wherever the project currently is — not from zero.
-
-## Adaptive Behavior
-
-- If the project already has all files and up-to-date docs, steps 1-2 and
-  4-6 collapse to quick checks and the flow completes fast.
-- If the project is brand new with no structure, all 7 steps run fully (at
-  that point, suggest `/meta-init` instead since it's designed for greenfield).
-- Always ask the user before proceeding to the next step if any step
-  produced surprising findings (e.g., major drift, missing critical files).
 
 ## Error Handling
 

@@ -1,7 +1,6 @@
 {
   "permissions": {
     "allow": [
-      "mcp__homelab__*",
       "mcp__gateway__*",
       "Read",
       "Write",
@@ -92,14 +91,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash /c/dev/claude-skills-suite/hooks/stop-quality-gate.sh"
-          },
-          {
-            "type": "command",
-            "command": "bash /c/dev/claude-skills-suite/hooks/stop-memory-checkpoint.sh"
-          },
-          {
-            "type": "command",
             "command": "bash /c/dev/claude-skills-suite/hooks/session-end-summary.sh"
           }
         ]
@@ -109,13 +100,6 @@
   "effortLevel": "high",
   "skipDangerousModePermissionPrompt": true,
   "mcpServers": {
-    "homelab": {
-      "command": "bash",
-      "args": [
-        "-c",
-        "cd ~/.claude/mcp-servers && node homelab-mcp.js"
-      ]
-    },
     "playwright": {
       "command": "npx",
       "args": [
