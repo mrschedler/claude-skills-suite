@@ -29,6 +29,43 @@
 
 rule: agent-consumed files → scan-optimized. no filler, no transitions, no preamble.
 
+## ENGINEERING NOTEBOOK FORMAT
+
+### Entry format
+```
+## Entry N -- Title
+
+date=YYYY-MM-DD
+type=redesign|decision|finding|experiment|audit|fix
+
+**Changes:**
+| What | Before → After | Detail |
+
+**Decisions:**
+| Decision | Alternatives rejected | Reason |
+
+**Why:**
+| Driver | Before | After |
+
+**Impact:**
+| Target | Effect |
+
+**Evidence:** Qdrant search hint, git ref, artifact DB record
+```
+- not all sections required. use what fits.
+- date= and type= always required.
+- evidence must include Qdrant search hint (not UUIDs).
+
+### Index format
+```
+## Index
+| # | Title | Date | Type | Line |
+|---|-------|------|------|------|
+```
+- rebuilt on every entry addition
+- positioned after header block, before first entry
+- Line = actual line number in file
+
 ## SESSION LIFECYCLE
 
 ### On Session Start

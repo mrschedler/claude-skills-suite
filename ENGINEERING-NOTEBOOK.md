@@ -414,32 +414,4 @@ claude-light-research 2026-03-30". Interagent assignments #12 (project lifecycle
 
 ---
 
-<!-- New entries go above this line.
-
-TEMPLATE:
-
-## Entry N -- Title
-
-date=YYYY-MM-DD
-type=redesign|decision|finding|experiment|audit|fix
-
-**Changes:**
-| What | Before → After | Detail |
-
-**Decisions:**
-| Decision | Alternatives rejected | Reason |
-
-**Why:**
-| Driver | Before | After |
-
-**Impact:**
-| Target | Effect |
-
-**Evidence:** Qdrant search hint, git ref, artifact DB record
-
-RULES:
-- Not all sections required. Use what fits.
-- Tables > prose. Key facts > narrative.
-- date and type fields are always required.
-- Evidence must include a Qdrant search hint (not UUIDs — break on migration).
--->
+<!-- Entry format defined in behavioral-reminders.txt (WRITING FORMAT section). -->

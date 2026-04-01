@@ -44,21 +44,7 @@ Default: Engineering Notebook. Ask user if project touches patent work.
 4. **Create notebook** from template below.
 5. **Seed Entry 0** — origin entry. Source from GROUNDING.md if available, else ask user.
 
-6. **Generate TOC block** — `## Index` section between header and first entry.
-
-   Format:
-   ```
-   ## Index
-   | # | Title | Date | Line |
-   |---|-------|------|------|
-   | 0 | Origin | 2026-02-28 | 25 |
-   ```
-
-   - Parse all `## Entry N — Title (Date)` headings
-   - Line = actual line number in file
-   - Rebuild on every entry addition
-   - Position: after header block, before first `---`
-
+6. **Generate Index** — per ENGINEERING NOTEBOOK FORMAT in behavioral-reminders.txt.
 7. Confirm creation with the user.
 
 ## Engineering Notebook Template
@@ -66,40 +52,33 @@ Default: Engineering Notebook. Ask user if project touches patent work.
 ```markdown
 # {{PROJECT_NAME}} — Engineering Notebook
 
-Project: {{PROJECT_NAME}}{{PIPELINE_SLUG}}
-Started: {{PROJECT_START_DATE}}
-Notebook started: {{TODAY}}
+project={{PROJECT_NAME}}
+pipeline={{PIPELINE_SLUG}}
+started={{PROJECT_START_DATE}}
+notebook_created={{TODAY}}
 
-This notebook records the evolution of {{PROJECT_NAME}}: what was tried, what
-worked, what failed, and why. Entries are dated; git commit history provides
-authenticated timestamps. Each entry should capture reasoning, not just outcomes.
+<!-- Entry and index format defined in behavioral-reminders.txt (ENGINEERING NOTEBOOK FORMAT section). -->
 
----
-
-## Entry 0 — Origin ({{ORIGIN_DATE}})
-
-**What:** {{Origin description}}
-
-**Why:** {{Why this project was started}}
-
-**Evidence:** {{Git SHA, Qdrant search hint, or other reference if available}}
+## Index
+| # | Title | Date | Type | Line |
+|---|-------|------|------|------|
+| 0 | Origin | {{ORIGIN_DATE}} | decision | XX |
 
 ---
 
-<!-- New entries go above this line. Use the format:
+## Entry 0 -- Origin
 
-## Entry N — Title (YYYY-MM-DD)
+date={{ORIGIN_DATE}}
+type=decision
 
-**What:** What was done or decided.
+**Decisions:**
+| Decision | Reason |
+|----------|--------|
+| {{why project started}} | {{context}} |
 
-**Why:** Why this approach was chosen. What alternatives were considered.
-
-**Result:** What happened. Did it work? What was learned?
-
-**Evidence:** Git SHAs, Qdrant search hints (not UUIDs — IDs break on migration), file refs.
+**Evidence:** {{Qdrant search hint, git ref}}
 
 ---
--->
 ```
 
 ## Inventor's Notebook Template
