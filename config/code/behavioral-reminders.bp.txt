@@ -265,6 +265,65 @@ A new project's GROUNDING.md needs four things:
 4. The commercial model (if any).
 </project_setup>
 
+<long_arc_project_structure>
+Projects spanning weeks or months accumulate state across many sessions. To keep that state coherent and scannable, any such project uses a fixed set of six load-bearing artifacts. Other stores (pipeline, Qdrant, Neo4j, MongoDB) exist to support these, not duplicate them.
+
+<six_artifacts>
+| Artifact | Role | Update cadence |
+|----------|------|----------------|
+| GROUNDING.md | WHY — constraints, anti-patterns, decisions that don't change | rarely |
+| CLAUDE.md | HOW — agent conventions and tool paths for this repo | when conventions shift |
+| ENGINEERING-NOTEBOOK.md | JOURNEY — numbered dated entries; supersede don't delete | per significant session |
+| artifacts/plans/current.md | NORTH STAR — the active plan: phases, milestones, exit gates | per phase or pivot |
+| artifacts/project.db | DATA — structured findings, experiments, reviews, decisions | per significant artifact |
+| GOTCHAS.md | TRAPS — tactical operational hazards before risky work | when bitten |
+</six_artifacts>
+
+<plan_doc_is_spine>
+The current plan lives at `artifacts/plans/current.md` — this is either the real active plan file or a symlink pointing at one (e.g. `plans/phase-d-custom-usbd.md`). When the plan pivots — meaning the approach fundamentally changes, not minor updates — create a new file in `plans/`, move the old one to `plans/archive/` with a supersession header explaining why, and update the `current.md` pointer. Never edit the plan doc in place after a pivot; preserve the history so the reasoning for the pivot survives. Notebook entries and artifact DB records reference plan docs by filename so the cross-references stay stable.
+</plan_doc_is_spine>
+
+<reading_order>
+A fresh agent opening a long-arc project should read in this order to become productive in about ten minutes:
+
+1. GROUNDING.md — why the project exists and what's forbidden (2 min)
+2. CLAUDE.md — repo-specific conventions (1 min)
+3. artifacts/plans/current.md — active phase, current exit gate, work in flight (5 min)
+4. Last 3 entries of ENGINEERING-NOTEBOOK.md — recent journey and decisions (3 min)
+5. GOTCHAS.md — scan before touching risky areas
+6. memory_call > rehydrate with the task topic — targeted Qdrant context
+
+This order prioritizes stable understanding (why, how, what) before recent state (journey, traps, specifics).
+</reading_order>
+
+<secondary_layers>
+The secondary stores have narrower roles in long-arc projects:
+- Pipeline (project_call): project-level metadata and phase transitions only. Not per-task tracking.
+- Qdrant memory: cross-project narrative, keystone memory per major phase.
+- Neo4j graph: entity relationships at architecture scale, not per-commit.
+- MongoDB docs: reference-grade long documents over 1000 words.
+</secondary_layers>
+
+<when_to_create_pipeline_tasks>
+Pipeline tasks are for cross-boundary work, not local project tracking.
+
+Work contained within one project goes to local docs + Qdrant + artifact DB. No pipeline task needed.
+
+Cross-project or cross-machine work — inbox assignments, shared infrastructure changes — creates a pipeline task at the receiving project and references the plan doc phase it slots into.
+
+Per-task pipeline entries for in-project work become redundant with the plan doc and notebook entries. They also drift, requiring manual "scrub" sessions to reconcile. Don't create that drift tax.
+</when_to_create_pipeline_tasks>
+
+<progress_md_is_obsolete>
+Do not create PROGRESS.md for new projects, and consider removing it from existing ones at a natural break. Its historical role — tracking active state, exit gates, and current work — is now covered by:
+- `artifacts/plans/current.md` (active state and exit gates)
+- Latest ENGINEERING-NOTEBOOK entry (recent narrative)
+- `artifacts/project.db` recent records (structured data from the work)
+
+Maintaining PROGRESS.md as an additional summary creates drift against the plan doc and requires manual reconciliation.
+</progress_md_is_obsolete>
+</long_arc_project_structure>
+
 <after_significant_work>
 When a session produces decisions, architecture changes, gotchas, or blockers, persist them. Apply the Think Before Storing criteria: store what future sessions will actually need, capture the WHY and not just the WHAT, and check for existing memories to update rather than duplicate.
 

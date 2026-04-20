@@ -159,6 +159,46 @@ Scope: project memories only, not global.
 When grounding=false (no GROUNDING.md), run /project-organize before other work.
 New projects need GROUNDING.md covering: (1) why it exists (2) key decisions and reasoning (3) anti-patterns (4) commercial model.
 
+## LONG-ARC PROJECT STRUCTURE
+
+Projects spanning weeks or months use these six load-bearing artifacts. Other stores are secondary.
+
+| Artifact | Role | Update cadence |
+|----------|------|----------------|
+| GROUNDING.md | WHY — constraints, anti-patterns, decisions that don't change | rarely |
+| CLAUDE.md | HOW — agent conventions, tool paths for this repo | when conventions shift |
+| ENGINEERING-NOTEBOOK.md | JOURNEY — numbered dated entries, supersede don't delete | per significant session |
+| artifacts/plans/current.md | NORTH STAR — active plan: phases, milestones, exit gates | per phase/pivot |
+| artifacts/project.db | DATA — structured findings, experiments, reviews, decisions | per significant artifact |
+| GOTCHAS.md | TRAPS — tactical operational hazards | when bitten |
+
+### Plan doc is the spine
+- Current plan lives at `artifacts/plans/current.md` (real file or symlink to active plan).
+- Plan pivots create a new file. Old plan moves to `artifacts/plans/archive/` with supersession header.
+- Never edit the plan doc in place after a pivot. Preserve history.
+- Notebook entries and DB records reference plan docs by filename.
+
+### Reading order for fresh agent
+1. GROUNDING.md (why/forbidden)
+2. CLAUDE.md (repo conventions)
+3. artifacts/plans/current.md (active phase, exit gate)
+4. Last 3 ENGINEERING-NOTEBOOK entries (recent journey)
+5. GOTCHAS.md scan before risky work
+6. memory_call rehydrate for targeted topic
+
+### Secondary layers — narrowed roles
+- Pipeline (project_call): project-level metadata + phase transitions only. Not per-task.
+- Qdrant: cross-project narrative, keystone memory per major phase.
+- Neo4j: entity relationships at architecture scale.
+- MongoDB: reference docs >1k words.
+
+### Pipeline task scope
+- In-project work → local docs + Qdrant + artifact DB. No pipeline task.
+- Cross-project/cross-machine work (inbox class) → inbox + pipeline task at receiving project.
+
+### PROGRESS.md is obsolete
+Role splits: plan doc = active work, latest notebook entry = recent narrative, DB rows = data. Don't create it for new projects; remove from existing ones at a natural break.
+
 ## AFTER SIGNIFICANT WORK
 
 If session produced decisions, architecture changes, gotchas, or blockers — persist them.

@@ -636,3 +636,55 @@ type=experiment
 - Prompt engineering guide: https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/claude-prompting-best-practices (fetched 2026-04-20)
 - Notebook Entry 10: the 5-iteration experiment that produced IMPOTANCE on 4.6
 - Notebook Entry 12: the hook-block that complements this A/B (different failure mode, same underlying concern)
+
+---
+
+## Entry 14 -- Long-Arc Project Structure: Six Load-Bearing Artifacts (2026-04-20)
+
+date=2026-04-20
+type=decision
+
+**Changes:**
+| What | Before → After | Detail |
+|------|----------------|--------|
+| Project organization model | Seven parallel layers (local docs + pipeline + Qdrant + Neo4j + Mongo + artifact DB + Obsidian) with no canonical "what are we doing now?" store | Six load-bearing artifacts + narrower role for secondary layers. Plan doc = spine. |
+| Pipeline scope | Per-task granularity, duplicated PROGRESS.md content | Project-level metadata + phase transitions only. Cross-project/cross-machine work still uses pipeline tasks. |
+| PROGRESS.md role | Canonical active state (duplicated pipeline + plan doc) | Dropped. Active state = plan doc's exit gates + last N notebook entries + recent DB rows. |
+| Plan doc role | One of several artifacts referenced from PROGRESS.md | North star. `artifacts/plans/current.md` is the single place "what are we doing now" lives. |
+
+**Decisions:**
+| Decision | Alternatives rejected | Reason |
+|----------|----------------------|--------|
+| Plan doc as spine, versioned with supersede chains | Pipeline as spine; PROGRESS.md as spine | Pipeline isn't diff-able, doesn't render in GitHub, requires MCP call to read. PROGRESS.md becomes a drift target because it mirrors plan + pipeline. Plan doc is already load-bearing in practice (QL-G3-Enterprise) — formalizing it cuts the drift tax. |
+| Versioned plan files, not in-place edits | Edit `current.md` in place | Preserves history. When plan pivots (rare but real — see QL-G3-Enterprise cable-competitive → bind-time-cache pivot 2026-04-18), new file + supersession header captures WHY, old plan archived, notebook references stable filenames. |
+| Drop PROGRESS.md | Keep as summary render from plan + notebook | No information loss (everything it had is in plan doc + notebook entries + DB). Manual sync cost was real and recurring ("plan scrub" memory 2fbafdfb). |
+| Pipeline narrowed, not dropped | Delete pipeline entirely; mandate per-task pipeline tracking | Pipeline's unique value is cross-project aggregation + structured automation triggers + multi-machine view. Per-task use was redundant; project-level + phase-transition use is unique. |
+| Six-artifact structure with explicit reading order | Let agents discover what's in each project | Cold-start time was ~30+ min grepping across systems. Explicit reading order gets a fresh agent productive in ~10 min. |
+
+**Why:**
+| Driver | Before | After |
+|--------|--------|-------|
+| Long-arc projects (months, 100+ hours) accumulate multi-layer state | QL-G3-Enterprise had PROGRESS.md + pipeline + plan docs + Qdrant keystones + artifact DB + Obsidian all asserting overlapping state; required manual scrub sessions to keep consistent | Single canonical spine (plan doc), other layers serve distinct non-overlapping roles |
+| Fresh agents struggled to orient | 5+ systems to reconcile before understanding current state. PROGRESS.md was trying to be a summary but was stale half the time. | 6-step reading order: GROUNDING → CLAUDE.md → current plan → last 3 notebook entries → GOTCHAS → targeted rehydrate. ~10 min cold-start. |
+| Pipeline overhead without pipeline-unique value | Agents wrote pipeline tasks for every bug fix; pipeline was a write-only mirror of PROGRESS.md | Pipeline tasks reserved for cross-project/cross-machine work; in-project work uses local docs + Qdrant + DB |
+
+**Impact:**
+| Target | Effect |
+|--------|--------|
+| QL-G3-Enterprise | Will lose PROGRESS.md (migration to `artifacts/plans/current.md` as canonical pointer). Pipeline Sprint 12 narrowed. |
+| New long-arc projects | `/project-organize` (or a new companion skill) scaffolds the six-artifact structure. |
+| Behavioral-reminders.txt | New section codifying six-artifact structure + reading order for long-arc projects. |
+| Skills suite itself | Dogfood — the suite is a long-arc project; this entry demonstrates the new pattern on the project that just defined it. |
+| Cross-machine/cross-project work (#74, #93 class) | Still uses inbox + pipeline tasks; unchanged. |
+
+**Lessons:**
+- Observing practice beats prescribing structure. QL-G3-Enterprise's plan-doc-as-spine pattern already worked; the mistake was not formalizing it and letting pipeline + PROGRESS.md continue to compete for the same role.
+- "Scatter" and "drift tax" are often the same phenomenon. When multiple stores claim authority over the same state, the cost isn't confusion — it's manual reconciliation work that shows up as meta-sessions ("plan scrub").
+- The pipeline is a good tool, just the wrong tool for per-task tracking on a single project. Its value is cross-project visibility, not local backlog management.
+
+**Evidence:**
+- Artifact DB record 15 (skill=project-organize, phase=decision, label=long-arc-project-structure-2026-04-20) — full analysis preserved
+- QL-G3-Enterprise reference: PROGRESS.md + `artifacts/plans/bind-time-cache-architecture.md` v1.1 + Qdrant keystone memories demonstrate current state
+- Qdrant memory `2fbafdfb` (2026-04-17): literal "plan scrub" session reconciling 5 stores — concrete drift-tax artifact
+- Qdrant search hint: "long-arc project structure six artifacts plan doc spine"
+- Git: commit following this entry, plus follow-up commits migrating QL-G3-Enterprise and updating behavioral-reminders.txt

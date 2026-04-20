@@ -17,16 +17,22 @@ Every project gets these two files (minimum viable onboarding):
 | **GROUNDING.md** | WHY — product context, decisions, constraints, anti-patterns |
 | **CLAUDE.md** | QUICKSTART — reading order, access patterns, guardrails |
 
-Created if the project warrants them:
+Created when the project is long-arc (expected to span weeks/months, accumulating state across sessions):
+
+| File | Role |
+|------|------|
+| **ENGINEERING-NOTEBOOK.md** | JOURNEY — numbered dated entries, supersede don't delete |
+| **artifacts/plans/current.md** | NORTH STAR — active plan: phases, milestones, exit gates |
+| **artifacts/project.db** | DATA — structured findings, experiments, reviews, decisions |
+| **GOTCHAS.md** | TRAPS — tactical operational hazards (created when first one is bitten) |
+
+Created occasionally for specific project types:
 
 | File | When to create |
 |------|---------------|
-| **ENGINEERING-NOTEBOOK.md** | Projects with significant design history (hardware, multi-sprint, exploratory) |
 | **project-context.md** | Technically complex projects (multiple services, non-obvious architecture) |
-| **CURRENT-STATE.md** | Projects with live devices or deployed infrastructure |
-| **PLAN-*.md** | Projects with active development roadmaps |
 
-Does NOT create: coterie.md, cnotes.md, todo.md, features.md, project-plan.md, prd.json, progress.txt (per cross-cutting rule 2).
+Does NOT create: coterie.md, cnotes.md, todo.md, features.md, project-plan.md, prd.json, progress.txt, **PROGRESS.md**, **CURRENT-STATE.md**, **PLAN-\*.md** (per cross-cutting rule 2 + long-arc structure decision 2026-04-20 — active state lives in `artifacts/plans/current.md`, not in separate tracker files).
 
 ## Inputs
 
@@ -189,7 +195,46 @@ history, backfill key entries from:
 Evidence references use Qdrant search hints, not UUIDs:
 `Qdrant: search "keywords describing the memory"`
 
-#### 2.4 .gitignore (if missing or thin)
+#### 2.4 artifacts/ structure (if long-arc project)
+
+A long-arc project is one expected to span weeks or months with multiple sessions accumulating decisions, experiments, and plan pivots. Characteristics: active pipeline entry with multiple sprints, significant git history, or user confirmation that this is multi-session work.
+
+For a long-arc project, scaffold:
+
+```
+artifacts/
+├── project.db         # SQLite — init via artifacts/db.sh if it exists in skills suite
+├── db.sh              # Copy from skills-suite/artifacts/db.sh if missing
+├── plans/
+│   ├── current.md     # The active plan (real file or symlink to one)
+│   └── archive/       # Superseded plans live here, never deleted
+└── reviews/           # Review artifacts (optional, created when first review runs)
+```
+
+**`artifacts/plans/current.md` template** (if the project doesn't have an active plan):
+
+```markdown
+# {{PLAN_NAME}} — Active Plan
+
+> Active as of {{DATE}}. Supersedes: {{PRIOR_PLAN_FILENAME or "none — initial plan"}}.
+
+## Purpose
+[What this plan achieves. 1-2 paragraphs.]
+
+## Phases
+| Phase | Milestones | Exit gate |
+|-------|-----------|-----------|
+
+## Abort criteria
+[Conditions under which this plan should be paused or pivoted. Not "we failed" — "we should pick a different plan."]
+
+## Day-by-day (optional, for active execution)
+[Detail only the phase in flight. Future phases stay high-level.]
+```
+
+**Plan versioning rule:** When the plan fundamentally pivots (not minor updates), create a new file in `plans/`, move the old plan to `plans/archive/` with a supersession header, and update `current.md`. Never edit a superseded plan in place.
+
+#### 2.5 .gitignore (if missing or thin)
 
 Create or expand based on the project's tech stack. Always include:
 ```
@@ -203,7 +248,7 @@ tmp/
 
 Add language/framework-specific patterns as detected.
 
-#### 2.5 Pipeline entry (if missing and MCP available)
+#### 2.6 Pipeline entry (if missing and MCP available)
 
 Create via `project_call > create_project` with:
 - Accurate description from GROUNDING.md
@@ -272,10 +317,22 @@ Read `references/type-adaptations.md` for type-specific guidance.
 
 - GROUNDING.md exists and a fresh agent can understand the project from it alone
 - CLAUDE.md references GROUNDING.md as step 1
+- For long-arc projects: `artifacts/plans/current.md` exists (real file or symlink), `artifacts/project.db` initialized, ENGINEERING-NOTEBOOK.md exists with at least Entry 0
+- No PROGRESS.md, CURRENT-STATE.md, or PLAN-\*.md at root (their role belongs to `artifacts/plans/current.md`)
 - No root docs claim "read this first" unless they're GROUNDING.md or CLAUDE.md
 - No stale docs send agents to pursue wrong-era work
 - .gitignore covers generated/ephemeral content
 - All changes committed and pushed
+
+## Reading order (for reference, matches behavioral-reminders.txt)
+
+A fresh agent on the organized project should read:
+1. GROUNDING.md (why/forbidden)
+2. CLAUDE.md (repo conventions)
+3. `artifacts/plans/current.md` (active phase, exit gate) — if long-arc
+4. Last 3 ENGINEERING-NOTEBOOK entries (recent journey) — if long-arc
+5. GOTCHAS.md scan before risky work — if present
+6. `memory_call > rehydrate` for targeted topic
 
 ---
 
