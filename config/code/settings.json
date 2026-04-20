@@ -118,6 +118,7 @@
       }
     ]
   },
+  "cleanupPeriodDays": 365,
   "effortLevel": "xhigh",
   "skipDangerousModePermissionPrompt": true,
   "mcpServers": {
