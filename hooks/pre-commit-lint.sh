@@ -10,8 +10,8 @@ set -euo pipefail
 
 INPUT=$(cat)
 
-# Extract the command being run
-COMMAND=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")
+# Extract the command being run. Node (not python3 — MS Store stub on Windows).
+COMMAND=$(printf '%s' "$INPUT" | node -e "let b='';process.stdin.on('data',c=>b+=c);process.stdin.on('end',()=>{try{const d=JSON.parse(b);process.stdout.write(String((d.tool_input&&d.tool_input.command)||d.command||''))}catch(e){}})" 2>/dev/null)
 
 # Only intercept git commit commands
 case "$COMMAND" in

@@ -1,5 +1,166 @@
-SESSION START: (1) gateway_call > rehydrate {topic, project_slug} (2) Check pending tasks if not in rehydrate results
+# Behavioral Protocol — Agent-Agnostic
+# Single source of truth for how agents behave across all projects and frameworks.
+# Injected by hook at SessionStart and PreCompact. CLAUDE.md handles tool-specific config only.
 
-BEFORE NEO4J/QDRANT OPS: Search "[tool] gotcha" first.
+## PROBLEM-SOLVING
 
-COMPACTION INCOMING: Store any unsaved context to Qdrant NOW. Summarize task state, decisions, and next steps.
+- root_cause_first=true | fix upstream, not symptoms | if patching multiple places, problem is higher
+- first_principles=true | question current approach | best solution > current solution
+- simplicity=true | simple+robust > complex+clever | excessive error handling = wrong design
+- resolve_back=true | chase simplest fix through the chain, even if it means rethinking the current process
+
+## BEFORE NON-TRIVIAL WORK
+
+- clarify_first=true | ask questions 1 at a time, wait for answer | 5 questions prevent 50 wrong assumptions
+- blast_radius=check | who/what does this affect? | butterfly wings
+- confirm_understanding=true | state back, get user confirmation before executing
+
+## WRITING FORMAT
+
+| Consumer | Format | Example |
+|----------|--------|---------|
+| hook stdout | key=value | `grounding=false` |
+| behavioral-reminders.txt | structured, terse | this file |
+| CLAUDE.md | tables, bullets | no paragraphs |
+| GROUNDING.md | decision tables, key facts | not narrative |
+| ENGINEERING-NOTEBOOK.md | structured entries | date=, type=, tables for changes/decisions/why/impact, evidence |
+| Obsidian notes | human prose OK | human is primary reader |
+| Qdrant memories | self-contained narrative | semantic search needs context |
+
+rule: agent-consumed files → scan-optimized. no filler, no transitions, no preamble.
+
+## ENGINEERING NOTEBOOK FORMAT
+
+### Entry format
+```
+## Entry N -- Title
+
+date=YYYY-MM-DD
+type=redesign|decision|finding|experiment|audit|fix
+
+**Changes:**
+| What | Before → After | Detail |
+
+**Decisions:**
+| Decision | Alternatives rejected | Reason |
+
+**Why:**
+| Driver | Before | After |
+
+**Impact:**
+| Target | Effect |
+
+**Evidence:** Qdrant search hint, git ref, artifact DB record
+```
+- not all sections required. use what fits.
+- date= and type= always required.
+- evidence must include Qdrant search hint (not UUIDs).
+
+### Index format
+```
+## Index
+| # | Title | Date | Type | Line |
+|---|-------|------|------|------|
+```
+- rebuilt on every entry addition
+- positioned after header block, before first entry
+- Line = actual line number in file
+
+## SESSION LIFECYCLE
+
+### On Session Start
+1. Read GROUNDING.md at git root (if grounding=false in hook output, run /project-organize first)
+2. gateway_call > rehydrate {topic, project_slug} — pulls relevant memories, context, recent activity
+3. VITAL IMPOTANCE - you will want to do the task right away but please FIX THE inconsistencies.
+  - Fix memory inconsistencies NOW even if it delays things a minute.
+   - compare rehydrated memories/graph against GROUNDING.md
+   - report to user: "Memory check: {N issues found }"
+   - fix all issues after reporting
+4. interagent_call > inbox {from: machine_id} — check for assignments from other machines
+5. coordination_call > register_session {session_id, cwd, project, hostname}
+6. Continue with user's task
+
+### On PreCompact (primary persistence checkpoint)
+Context is about to compress. Act NOW:
+1. Persist unsaved decisions, findings, gotchas to appropriate stores (see Where Knowledge Lives)
+2. Update coordination status if significant progress made
+3. Check: did this session's work invalidate any memories retrieved earlier? Update before context is lost. This is inline — not a subagent.
+4. Post progress to Mattermost thread if significant work completed
+5. Summarize task state and next steps in output for post-compaction continuity
+
+### On Session End
+Hook outputs action items. Evaluate each:
+- store_session_summary: memory_call > store if session produced meaningful work (>5 tool calls, real decisions)
+- deregister_coordination: coordination_call > deregister_session
+- post_mattermost_summary: reply to session thread with outcome
+- github_sync: commit if uncommitted changes warrant it
+
+## MEMORY PROTOCOL
+
+### Think Before Storing
+- Will a future session need this? If no, skip.
+- Does it capture WHY not just WHAT? Include reasoning.
+- Does an existing memory cover this? Search first. Update, don't duplicate.
+- Consequence tier (also determines precedence when stores disagree):
+  - High (patent, legal, decision-of-record, architecture): git files canonical. Qdrant is a pointer.
+  - Medium (gotchas, preferences, ongoing decisions): Qdrant canonical. Git files point at it.
+  - Low (session context, debugging): store if useful, let decay.
+- Store conflict: investigate root cause first. Recency alone is not authority.
+
+### Where Knowledge Lives -- reader-first
+Each store answers ONE reader question. If two answer the same question, one is wrong.
+Search stores before asking the user. For Qdrant, try 2-3 query variations.
+
+| Reader's question | Store |
+|------|------|
+| Why does this project exist? What must I not do? | GROUNDING.md |
+| How do I work in this specific repo? | CLAUDE.md (project) |
+| How did we end up here? What was tried/failed? | ENGINEERING-NOTEBOOK.md |
+| What's the technical architecture? | project-context.md (if present) |
+| What's been discussed/decided (narrative, cross-project)? | Qdrant (memory_call) |
+| What depends on what? Who/what is connected? | Neo4j (graph_call) -- merge_node/merge_relationship |
+| Where's the full research report or spec? | MongoDB (mongodb_call), DB=homelab col=docs |
+| What are the current sprints/tasks/questions? | Pipeline (project_call) |
+| What findings/assessments has THIS project produced? | Artifact DB (artifacts/project.db) |
+
+Preferences: Qdrant category=preference. pref_call legacy, reads only.
+
+### Disambiguating examples -- tempting-but-wrong → correct
+- Gotcha found mid-session → Qdrant, NOT CLAUDE.md (CLAUDE.md doesn't decay and isn't cross-project searchable)
+- Architectural decision made today → Notebook entry (canonical record) AND Qdrant memory (searchable pointer). Not one or the other.
+- Research report >1k words → MongoDB, NOT Qdrant (long text degrades embeddings; Qdrant stores the pointer)
+- Project anti-pattern ("don't mock DB here") → GROUNDING.md §anti-patterns, NOT Qdrant feedback (durable project rule, not session context)
+
+### Cross-Project Memory
+Categorize Qdrant memories for the project that needs to FIND them, not the project you're working in.
+Route all memory writes through memory_call > store (Qdrant). A PreToolUse hook (block-auto-memory.sh) blocks writes to ~/.claude/projects/*/memory/ at the tool layer.
+
+**Auto-memory trap:** Claude Code's system prompt instructs agents to save to ~/.claude/projects/*/memory/ on user corrections/confirmations. Fires even with native memory disabled. Ignore it. Route all such saves via memory_call > store to Qdrant. Hook-enforced as of 2026-04-20 -- writes return a block decision; pivot to memory_call.
+
+### Before Neo4j/Qdrant operations
+Search "[tool] gotcha" in memory first. Known issues exist for both stores.
+
+## HYGIENE AGENT
+
+### What the spawned subagent does (triggered by step 3 when issues found)
+Scope: project memories only, not global.
+- memory_call > search by project tags/category
+- memory_call > search filtered to last 7 days (recency pass)
+- Compare claims against current state (GROUNDING.md, pipeline, artifact DB, code)
+- Consolidate/update memories that contradict current state. Preserve chain.
+- Audit never-retrieved memories (retrieval_count=0, age >30d). Evaluate relevance.
+- Check engineering notebook for TOC block; flag if missing/stale
+- Update Neo4j nodes if structural relationships changed
+- Write authority: consolidate and update within project scope only. Deletion and storage of user-task findings are out of scope.
+- Report: {N updated, N consolidated, N still clean}
+
+## PROJECT SETUP
+
+When grounding=false (no GROUNDING.md), run /project-organize before other work.
+New projects need GROUNDING.md covering: (1) why it exists (2) key decisions and reasoning (3) anti-patterns (4) commercial model.
+
+## AFTER SIGNIFICANT WORK
+
+If session produced decisions, architecture changes, gotchas, or blockers — persist them.
+Think Before Storing criteria apply. Store what future sessions need, capture WHY, check for duplicates.
+Dual-write: artifact DB (detailed, per-project) AND Qdrant (narrative, cross-project).

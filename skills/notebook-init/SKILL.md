@@ -5,10 +5,8 @@ description: "Creates an engineering or inventor's notebook in a project. Use wh
 
 # notebook-init
 
-Create a timestamped, git-tracked notebook for recording design evolution,
-decisions, failed approaches, and key insights. Every project benefits from one.
-The notebook is the long-term record of WHY things evolved the way they did —
-GROUNDING.md captures the current state, the notebook captures the journey.
+Git-tracked notebook for design evolution, decisions, failed approaches, and key insights.
+GROUNDING.md = current state. Notebook = the journey.
 
 ## When to use
 
@@ -24,8 +22,7 @@ GROUNDING.md captures the current state, the notebook captures the journey.
 | **Engineering Notebook** | Default for all projects | Records what was tried, what worked, what failed, and why. Evidence references optional. |
 | **Inventor's Notebook** | Patent-related projects only | Stricter evidence requirements. Every entry needs dated evidence with immutability classification. Git SHAs are primary timestamps. Legal standing. |
 
-Ask the user which type if the project touches patent work. Default to
-Engineering Notebook if not asked or if the user doesn't specify.
+Default: Engineering Notebook. Ask user if project touches patent work.
 
 ## Inputs
 
@@ -39,66 +36,49 @@ Engineering Notebook if not asked or if the user doesn't specify.
 
 ## Instructions
 
-1. **Read GROUNDING.md** if it exists — extract project name, purpose, start
-   date, and pipeline slug. Do not ask the user for information already there.
+1. **Read GROUNDING.md** — extract project name, purpose, start date, pipeline slug.
+2. **Check for existing notebook** — glob `*NOTEBOOK*`. If found: ask user (update, replace, abort).
+3. **Placement:**
+   - Engineering: `<project-root>/ENGINEERING-NOTEBOOK.md`
+   - Inventor's: `<project-root>/invention/INVENTORS-NOTEBOOK.md`
+4. **Create notebook** from template below.
+5. **Seed Entry 0** — origin entry. Source from GROUNDING.md if available, else ask user.
 
-2. **Check for existing notebook** — look for `ENGINEERING-NOTEBOOK.md`,
-   `INVENTORS-NOTEBOOK.md`, or any `*NOTEBOOK*` file. If one exists, report it
-   and ask what the user wants (update, replace, or abort).
-
-3. **Determine placement:**
-   - Engineering Notebook: `<project-root>/ENGINEERING-NOTEBOOK.md`
-   - Inventor's Notebook: `<project-root>/invention/INVENTORS-NOTEBOOK.md`
-     (create `invention/` directory if needed)
-
-4. **Create the notebook** using the appropriate template below.
-
-5. **Seed Entry 0** — every notebook starts with an origin entry. Ask the user:
-   "What's the origin story? When and why did this project start?" Use their
-   answer to write Entry 0. If GROUNDING.md already explains this, draft Entry 0
-   from it and confirm with the user.
-
-6. Confirm creation with the user.
+6. **Generate Index** — per ENGINEERING NOTEBOOK FORMAT in behavioral-reminders.txt.
+7. Confirm creation with the user.
 
 ## Engineering Notebook Template
 
 ```markdown
 # {{PROJECT_NAME}} — Engineering Notebook
 
-Project: {{PROJECT_NAME}}{{PIPELINE_SLUG}}
-Started: {{PROJECT_START_DATE}}
-Notebook started: {{TODAY}}
+project={{PROJECT_NAME}}
+pipeline={{PIPELINE_SLUG}}
+started={{PROJECT_START_DATE}}
+notebook_created={{TODAY}}
 
-This notebook records the evolution of {{PROJECT_NAME}}: what was tried, what
-worked, what failed, and why. Entries are dated; git commit history provides
-authenticated timestamps. Each entry should capture reasoning, not just outcomes.
+<!-- Entry and index format defined in behavioral-reminders.txt (ENGINEERING NOTEBOOK FORMAT section). -->
 
----
-
-## Entry 0 — Origin ({{ORIGIN_DATE}})
-
-**What:** {{Origin description}}
-
-**Why:** {{Why this project was started}}
-
-**Evidence:** {{Git SHA, Qdrant search hint, or other reference if available}}
+## Index
+| # | Title | Date | Type | Line |
+|---|-------|------|------|------|
+| 0 | Origin | {{ORIGIN_DATE}} | decision | XX |
 
 ---
 
-<!-- New entries go above this line. Use the format:
+## Entry 0 -- Origin
 
-## Entry N — Title (YYYY-MM-DD)
+date={{ORIGIN_DATE}}
+type=decision
 
-**What:** What was done or decided.
+**Decisions:**
+| Decision | Reason |
+|----------|--------|
+| {{why project started}} | {{context}} |
 
-**Why:** Why this approach was chosen. What alternatives were considered.
-
-**Result:** What happened. Did it work? What was learned?
-
-**Evidence:** Git SHAs, Qdrant search hints (not UUIDs — IDs break on migration), file refs.
+**Evidence:** {{Qdrant search hint, git ref}}
 
 ---
--->
 ```
 
 ## Inventor's Notebook Template
@@ -147,14 +127,10 @@ EVIDENCE RULES for inventor's notebooks:
 -->
 ```
 
-## Integration with other skills
+## Integration
 
-This skill is designed to be called from:
-- `/project-organize` — as Phase 2.3 after GROUNDING.md creation
-- `/meta-init` — as part of the full project initialization flow
-
-When called from another skill, skip the confirmation prompts and use
-information already gathered by the parent skill.
+Called from: `/project-organize` (Phase 2.3), `/meta-init`
+When called from parent skill: skip confirmations, use already-gathered inputs.
 
 ## Do NOT create
 
@@ -164,7 +140,7 @@ information already gathered by the parent skill.
 
 ## Exit condition
 
-Notebook file exists with header and Entry 0 filled. User has confirmed.
+Notebook file exists with header, TOC, and Entry 0. User confirmed.
 
 ---
 

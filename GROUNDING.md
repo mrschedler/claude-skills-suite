@@ -25,6 +25,42 @@ This project solves the cold-start problem at the **skill layer**. Skills are re
 
 5. **Windows + Git Bash environment.** All shell commands must work on Windows 11 with Git Bash. No macOS paths, no Homebrew, no `gtimeout`, no `zsh`.
 
+## Cross-Project Impact (Butterfly Wings)
+
+| Amplification layer | Mechanism | Blast radius |
+|---------------------|-----------|-------------|
+| Local machines | Syncthing sync | dell-xps, skip — all dev machines |
+| Per session | hooks + skills load every session | 10+ active projects, thousands of sessions |
+| Downstream users | personal-ai-kit pulls from this repo | Luke, Elise, eventually Lee, Heather |
+
+**Consequence:** 1-line change to hook/skill/behavioral-reminder → silently affects entire fleet.
+
+### Hook Categories
+
+| Category | Execution | Constraint |
+|----------|-----------|-----------|
+| Local (bash) | GROUNDING check, artifact DB, SSH reminders, git lint, complexity, pre-compact | <2s, offline-safe, no side effects |
+| Gateway (agent-native MCP) | rehydration, interagent, coordination, mattermost, memory ops | graceful degradation if gateway unreachable |
+
+**No infrastructure topology in hooks.** No SSH hosts, no docker inspect, no container IPs. Transport = mcp.json.
+
+### Instruction Files
+
+| File | Scope | Role |
+|------|-------|------|
+| `behavioral-reminders.txt` | all agents | behavioral protocol, hook-injected. highest-amplification file in repo. |
+| `CLAUDE.md` (global) | Claude Code | infrastructure, workspace. Claude-specific only. |
+| `GROUNDING.md` (this file) | this project | WHY, decisions, constraints, blast radius |
+| `ENGINEERING-NOTEBOOK.md` | this project | journey log, decisions over time |
+
+### Downstream Update Protocol
+
+| Project | Impact | On change here |
+|---------|--------|---------------|
+| personal-ai-kit | pulls hooks + skills | test against kit mcp.json before merge |
+| memory-system | docs reference hook architecture | update memory-system GROUNDING + notebook |
+| all GROUNDING.md projects | hooks fire, behavioral-reminders apply | changes are immediately live everywhere |
+
 ## Key Decisions
 
 | Decision | Alternatives Considered | Why This One |
@@ -160,3 +196,41 @@ Qdrant: search "skill suite simplification plan 2026-03-25"
 | memory-consolidation-engine | Pipeline slug | Broader initiative this feeds into (memory + skills + project org) |
 | MCP Gateway | Unraid `/mnt/raid1_pool/appdata/mcp-gateway/repo/` | Infrastructure layer skills can call |
 | Trevor's original | `trevorbyrum/claude-skills-suite` | Upstream fork source |
+
+## Project Documentation Standard
+
+Standard structure for all projects. Agents MUST follow this when creating or organizing files.
+
+### Root Files (fixed set)
+
+| File | Required | Purpose |
+|------|:--------:|---------|
+| GROUNDING.md | Yes | Why it exists, decisions, anti-patterns, current state |
+| CLAUDE.md | Yes | Agent quickstart — reading order, rehydration, guardrails |
+| ENGINEERING-NOTEBOOK.md | Yes | Chronological structured entries. View, not storage. |
+| ARCHITECTURE.md | No | Deep architecture when GROUNDING.md isn't enough |
+| project-context.md | No | Technical handoff doc (from /project-context skill) |
+
+No other files at root. No README, PROGRESS, TODO, CHANGELOG, STATUS, NOTES.
+Existing violations should be resolved: merge useful content into GROUNDING.md or ENGINEERING-NOTEBOOK.md, then move/delete the file.
+
+### artifacts/ Directory
+
+| Item | Purpose |
+|------|---------|
+| project.db | SQLite artifact DB — findings, assessments, decisions |
+| db.sh | Shell helpers (`db_init`, `db_add`, `db_search`, `db_list`) |
+| research/ | Research outputs. Timestamped: `topic-YYYY-MM-DD.md`. Deep research → numbered subfolder (`001D/`) |
+| plans/ | Implementation plans from /build-plan or /quick-plan |
+| reviews/ | Review outputs from /meta-review, /security-review, etc. |
+| *.txt | One-off reports. Timestamped: `topic-YYYY-MM-DD.txt` |
+
+### Rules
+
+| Rule | Detail |
+|------|--------|
+| Findings → project.db first | Don't create .md when `db_add` works. Loose files = last resort. |
+| One fact, one home | No duplication across files. Notebook references artifact DB, not reverse. |
+| No ad-hoc root files | All generated output → artifacts/. Root = fixed set only. |
+| Timestamps in filenames | `topic-YYYY-MM-DD.ext` for all artifacts. No undated files. |
+| Subdirectories earn their way | Don't pre-create empty dirs. Create when first artifact needs it. |

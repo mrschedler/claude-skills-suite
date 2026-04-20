@@ -4,14 +4,8 @@
 
 INPUT=$(cat)
 
-COMMAND=$(echo "$INPUT" | python3 -c "
-import sys, json
-try:
-    d = json.load(sys.stdin)
-    print(d.get('tool_input', {}).get('command', ''))
-except:
-    print('')
-" 2>/dev/null)
+# JSON parse via node (python3 on Windows resolves to the MS Store stub).
+COMMAND=$(printf '%s' "$INPUT" | node -e "let b='';process.stdin.on('data',c=>b+=c);process.stdin.on('end',()=>{try{const d=JSON.parse(b);process.stdout.write(String((d.tool_input&&d.tool_input.command)||d.command||''))}catch(e){}})" 2>/dev/null)
 
 if echo "$COMMAND" | grep -qE 'git commit'; then
   cat <<'EOF'

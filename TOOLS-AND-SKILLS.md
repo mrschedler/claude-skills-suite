@@ -165,7 +165,7 @@ Browser automation via `@playwright/mcp@latest`. Used by `browser-review` skill.
 
 ## Skills Suite
 
-**60 total skills** — 46 user-invocable, 12 internal-only, 2 deprecated.
+**44 active skills, 17 archived** — 37 user-invocable, 7 internal-only.
 Invoked via `/skill-name` in Claude Code. Each skill lives in `skills/<name>/SKILL.md`.
 
 ### Development & Planning

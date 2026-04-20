@@ -94,7 +94,7 @@ SESSION END (2nd stop)
 Self-describing — agents discover tools without documentation.
 
 **Auto-enrichment:** All Qdrant/Neo4j writes auto-inject `recorded_at`.
-Embeddings use `all-MiniLM-L6-v2` (local, no API dependency).
+Embeddings use `nomic-embed-text-v1.5` (768-dim, 8K context, local ONNX model — no API dependency).
 
 ### Core Modules
 

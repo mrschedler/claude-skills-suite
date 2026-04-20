@@ -6,7 +6,8 @@
 # Works on Windows Git Bash.
 
 INPUT=$(cat)
-FILE_PATH=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || echo "")
+# JSON parse via node (python3 on Windows resolves to the MS Store stub).
+FILE_PATH=$(printf '%s' "$INPUT" | node -e "let b='';process.stdin.on('data',c=>b+=c);process.stdin.on('end',()=>{try{const d=JSON.parse(b);process.stdout.write(String((d.tool_input&&d.tool_input.file_path)||d.file_path||''))}catch(e){}})" 2>/dev/null)
 
 # Exit silently if no file path
 [ -z "$FILE_PATH" ] && exit 0
