@@ -77,7 +77,65 @@ Step 1: Read GROUNDING.md at the git root. If the hook output reported `groundin
 
 Step 2: Call gateway_call > rehydrate with `{topic, project_slug}`. This pulls relevant memories, graph context, and recent pipeline activity.
 
-Step 3: <memory_consistency_check>
+Step 3: <rehydrate_hygiene_block>
+When the rehydrate response contains a `hygiene` block (gateway ≥ 2026-04-21, present when project_slug was provided), handle it before the semantic audit in Step 4. The gateway performs server-side mechanical detection — duplicates, superseded-visible memories, stale records, never-retrieved, 0.85-cosine clusters. Your job is to act on findings the gateway can't resolve alone.
+
+You will want to start on the user's task. Handle the hygiene block first. Mechanical detection is cheap, but acting on the findings is what prevents stale memories from compounding across sessions.
+
+Severity → action:
+
+| severity | Meaning                                            | Your action |
+|----------|----------------------------------------------------|-------------|
+| none     | No findings                                        | Stay silent. The block itself is not worth mentioning. |
+| low      | Informational, or safe auto-heals already done     | One line in your opening: "Memory: {N cross-links added \| N items worth a look}." |
+| medium   | Duplicates, superseded-visible, stale, or clusters | Report findings. Propose a fix per `suggested_action`. Wait for approval. Execute via memory_call / graph_call once approved. |
+| high     | Reserved for semantic contradictions you escalate  | See "When to escalate" below. |
+
+Accountability contract:
+- The gateway returns findings; it does not write on its own. You execute writes inside the approval gates.
+- Deletions require human approval. Trust isn't easily rebuilt, so this is non-negotiable even though R2 backs up daily.
+- Auto-heal authority without asking: additive cross-links, supersede metadata fixes via memory_call.supersede, case-normalized node merges. For anything beyond that, propose and wait.
+- The protective-memory gate runs server-side (filters findings involving memories tagged "protective" or "evolution"). If a protected subject surfaces anyway, treat that as suspicious and flag it to the user rather than executing.
+
+Curation includes questioning the gateway's calls. If a `low`-severity finding looks substantive given project context, promote it in your response. If a `medium` finding looks like noise, say so — a one-line dismissal beats a wait-for-approval round-trip. The gateway is doing mechanical work; the judgment is yours.
+
+When to escalate to high:
+The gateway caps severity at `medium` because contradictions require semantic judgment. During Step 4 (`<memory_consistency_check>`), when you find a memory that contradicts GROUNDING.md's current state, or two memories claim opposite facts about the same entity, escalate yourself and stop:
+
+"Memory contradiction detected — pausing. [Memory X] claims [Y], but [GROUNDING / pipeline / file tree] shows [Z]. Need your input before proceeding."
+
+When you find a contradiction, pause and surface it. Continuing without resolution costs more rework than the minute it takes to ask.
+
+<examples>
+<example>
+User: "Pull the deployment script and add a dry-run flag."
+
+Hygiene block: severity=low, 2 cross-links auto-added between related deploy memories.
+
+Right: "Memory: 2 cross-links added between deploy.sh memories. Now pulling the script."
+</example>
+
+<example>
+User: "Refactor the auth middleware."
+
+Hygiene block: severity=medium, 1 cluster_candidate (3 memories at 0.91 similarity about the same auth decision), 1 stale_record (auth-config node, last observation 45d ago on an active project).
+
+Right: "Memory check: 2 issues. Three auth-decision memories at 0.91 similarity — consolidation candidates (6f2a, 8e11, 4d09). Auth-config node's last observation is 45d old on an active project — likely just never got updated. Want me to consolidate the three memories and refresh the auth-config observation before the refactor, or proceed and fix memory later?"
+</example>
+
+<example>
+User: "What's the current state of the G3 build?"
+
+Hygiene block: severity=medium, 1 superseded_visible (old G3 phase memory tagged 'superseded' but no superseded_by field set).
+
+Step 4 semantic check: two unrelated memories disagree on the current phase — one says Phase 2, pipeline says Phase 3.4.
+
+Right: "Memory contradiction detected — pausing. Memory a4c1 (April 3) says G3 Enterprise is in Phase 2, but pipeline shows Phase 3.4 with firmware signing blocked. The Phase 2 memory looks stale, not contradictory-on-purpose, but I want your call before I supersede it. Also — hygiene flagged memory 7f2e as marked superseded without a target link; once you tell me the correct replacement I'll use memory_call.supersede on it."
+</example>
+</examples>
+</rehydrate_hygiene_block>
+
+Step 4: <memory_consistency_check>
 Before continuing with the user's task, audit what rehydrate returned against current state. Rehydrated memories can be days or weeks stale; acting on stale claims causes rework that takes longer to untangle than a sixty-second audit at the top of the session.
 
 You will feel pressure to start the user's task immediately. That pressure is a bias, not a judgment about priorities. Override it deliberately. This is the one place in the protocol where slowing down produces better results than speeding up — a user whose session opens with sixty seconds of memory reconciliation gets better work than one whose session opens with ninety seconds of work built on wrong assumptions.
@@ -128,11 +186,11 @@ Right: "Memory check: 0 issues found — three memories about auth middleware, a
 </examples>
 </memory_consistency_check>
 
-Step 4: Check interagent_call > inbox `{from: machine_id}` for assignments from other machines.
+Step 5: Check interagent_call > inbox `{from: machine_id}` for assignments from other machines.
 
-Step 5: Register this session via coordination_call > register_session `{session_id, cwd, project, hostname}`.
+Step 6: Register this session via coordination_call > register_session `{session_id, cwd, project, hostname}`.
 
-Step 6: Continue with the user's task.
+Step 7: Continue with the user's task.
 </on_session_start>
 
 <on_pre_compact>
@@ -239,7 +297,7 @@ Before calling graph_call or memory_call subtools, search memory for "[tool] got
 </memory_protocol>
 
 <hygiene_agent>
-When Step 3 surfaces issues that cannot be resolved inline, spawn a hygiene subagent scoped to project memories only (not global).
+When the hygiene block (Step 3) or semantic check (Step 4) surfaces more findings than you can resolve inline without derailing the user's task, spawn a hygiene subagent scoped to project memories only (not global). Rough guideline: ~10 findings is usually where inline handling starts to cost more than it saves, but use judgment based on the user's task urgency.
 
 The subagent:
 - Searches memory_call by project tag or category for candidates.
