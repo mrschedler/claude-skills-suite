@@ -1,6 +1,6 @@
 ---
 name: rehydrate
-description: "Orient a fresh agent into an existing project by reading the load-bearing artifacts in the documented order (GROUNDING, CLAUDE, plan doc, last notebook entries, GOTCHAS, artifact DB, MCP memory). Read-only. Use at session start, after /clear, when picking up a project after time away, or when an agent feels disoriented. Triggers on 'rehydrate', 'orient me', 'load me into <project>', 'catch me up', and explicit /rehydrate."
+description: "Orient a fresh agent into an existing project by reading the load-bearing artifacts in the documented order (GROUNDING, CLAUDE, plan doc, last notebook entries, GOTCHAS, artifact DB, MCP memory). Read-only for project state; bounded session-bookkeeping writes (register_session, plus whatever .claude/rehydrate-extra.md authorizes) ARE part of the contract. Use at session start, after /clear, when picking up a project after time away, or when an agent feels disoriented. Triggers on 'rehydrate', 'orient me', 'load me into <project>', 'catch me up', and explicit /rehydrate."
 argument-hint: "[topic — focus for memory rehydrate] [--quick] [--no-mcp] [--no-pipeline]"
 ---
 
@@ -9,9 +9,22 @@ argument-hint: "[topic — focus for memory rehydrate] [--quick] [--no-mcp] [--n
 Load an agent into a project by reading the load-bearing artifacts in the order
 documented in `behavioral-reminders.txt` and the project's own CLAUDE.md.
 
-**Read-only.** No writes, no scaffolding, no reviews. If artifacts are missing,
-report — do not create them. Use `/project-organize` for scaffolding,
-`/meta-join` for full onboard.
+**Read-only for project state.** The skill does not scaffold, create
+notebook entries, modify plans/docs, or auto-fix hygiene flags. If
+artifacts are missing, report — do not create them. Use
+`/project-organize` for scaffolding, `/meta-join` for full onboard.
+
+**Bounded session-bookkeeping writes ARE allowed** — specifically, the
+calls in Step 6 (`coordination_call > register_session` etc.) and any
+steps a project's `.claude/rehydrate-extra.md` declares (e.g. a discipline
+gate script that writes a `SESSION-START-AUDIT` DB record + memory
+digest writeback). These exist to enable continuity between agent
+sessions, not to change project state. **If you skip them citing the
+"read-only" rule, you are misreading the contract** — the read-only
+boundary is around project state (code, plans, docs, notebooks), not
+around session metadata. Documented failure mode 2026-05-13 PM in
+quicklinks-g3-enterprise: fresh agent treated rehydrate-extra writes as
+violations of the read-only rule, skipped them, broke memory continuity.
 
 ## When to use
 
@@ -121,17 +134,31 @@ skill does not know which UUIDs matter.
 ### 7. Project-specific extension — if `.claude/rehydrate-extra.md` exists
 
 Read and follow it verbatim. This is the project's hook for extending
-rehydration with steps the generic skill cannot know about. Examples:
+rehydration with steps the generic skill cannot know about. **Extensions
+may include bounded writes** (discipline-gate audit records, memory
+digest writebacks, register_session calls, etc.) — these are
+session-bookkeeping, not project state changes, and the "read-only"
+contract in the skill's intro explicitly carves them out. Examples:
 
 - Fetch specific governing Qdrant memories by UUID
 - Run a bench-state probe (`bash bench/bench_state.sh --brief`)
 - Verify a deployed binary md5 matches the documented binary
 - Read project-specific agent templates (e.g. `docs/agent-templates/pre-test-checklist.md`)
-- Apply a "first action of session is always X" gate
+- Apply a "first action of session is always X" gate that writes a
+  `SESSION-START-AUDIT` record (or equivalent) to the artifact DB
+- Write a memory-digest payload back to the audit record after the
+  agent fetches recent Qdrant memories
 
-If the extension file references commands or scripts that fail, surface the
-failure in the report — do not silently swallow it. A broken extension is a
-signal the project state has drifted.
+**Honor the extension's writes as written.** Skipping an extension step
+because "the skill is read-only" misreads the contract — the read-only
+rule applies to project state (code, plans, docs, notebooks), not to
+session-bookkeeping the extension explicitly authorizes. If you defer an
+extension write, flag the conflict explicitly in the report rather than
+silently choosing the skill's intro language over the extension.
+
+If the extension file references commands or scripts that fail, surface
+the failure in the report — do not silently swallow it. A broken
+extension is a signal the project state has drifted.
 
 ### 8. Hygiene check — light, inline
 
@@ -210,12 +237,21 @@ Run `/project-organize` to scaffold, then re-run `/rehydrate`."
 
 ## Non-goals
 
-- No writes. No memory store, no notebook entry, no pipeline updates.
-- No scaffolding (use `/project-organize`).
-- No full-onboard interview (use `/meta-join`).
-- No reviews (use `/meta-review` family).
-- No auto-fix of hygiene flags (use `/hygiene-check`).
-- No reading the full ENGINEERING-NOTEBOOK.md — bounded to last 2-3 entries.
+The skill does NOT:
+
+- Scaffold project structure (use `/project-organize`)
+- Run a full-onboard interview (use `/meta-join`)
+- Run reviews (use `/meta-review` family)
+- Auto-fix hygiene flags (use `/hygiene-check`)
+- Create notebook entries, modify plans, or change project state (code, docs, notebooks, plans)
+- Read the full `ENGINEERING-NOTEBOOK.md` — bounded to last 2-3 entries
+
+What the skill DOES allow (these are NOT in the "no writes" non-goal):
+
+- The MCP calls in Step 6, including `coordination_call > register_session` which writes coordination state
+- Whatever bounded writes a project's `.claude/rehydrate-extra.md` authorizes (e.g. discipline-gate audit records, memory-digest writebacks). These are session-bookkeeping, not project state changes — see Step 7.
+
+If you find yourself wanting to skip an extension write citing "the skill is read-only," re-read the intro. The read-only boundary is project state, not session metadata.
 
 ## Project-specific extension format
 
