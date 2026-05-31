@@ -13,7 +13,40 @@
       "Bash",
       "Agent",
       "WebFetch",
-      "WebSearch"
+      "WebSearch",
+
+      "Bash(bash bench/bench_state.sh*)",
+      "Bash(bash bench/run_modbus_experiment.sh*)",
+      "Bash(bash bench/run_modbus_experiment_wired.sh*)",
+      "Bash(bash bench/analyze_pcap.sh*)",
+      "Bash(bash bench/push_cm4.sh*)",
+      "Bash(python bench/uart_reader.py*)",
+      "Bash(python bench/analyze_da30_timing.py*)",
+      "Bash(python bench/analyze_da30_setup_requests.py*)",
+      "Bash(python bench/analyze_chain_rtt.py*)",
+      "Bash(python bench/analyze_fragments.py*)",
+      "Bash(python bench/analyze_three_intervals.py*)",
+      "Bash(python bench/parse_modbus_csv.py*)",
+      "Bash(python bench/parse_relay_trace.py*)",
+      "Bash(python bench/compile_session_summary.py*)",
+
+      "Bash(powershell.exe -NoProfile*)",
+      "PowerShell(Get-PnpDevice *)",
+      "PowerShell(Get-CimInstance *)",
+      "PowerShell(Get-Process *)",
+      "PowerShell(Get-PSDrive *)",
+      "PowerShell(Get-ItemProperty *)",
+      "PowerShell(Get-Item *)",
+      "PowerShell(Test-Path *)",
+      "PowerShell($targets *)",
+
+      "Bash(python client/moxa_loopback_test.py*)",
+      "Bash(python client/modbus_direct_test.py*)",
+      "Bash(python client/modbus_ftdi_test.py*)",
+      "Bash(python client/test_spi_ping.py*)",
+      "Bash(python client/test_all_slots.py*)",
+      "Bash(python -m pytest client/test_g3_broker.py*)",
+      "Bash(python client/test_g3_broker.py*)"
     ]
   },
   "hooks": {

@@ -2,6 +2,19 @@
 # Behavioral protocol is in behavioral-reminders.txt (hook-injected, agent-agnostic).
 # This file contains Claude Code-specific infrastructure and tool references only.
 
+## ⚠️ AUTO-MEMORY DIRECTORY IS OFF-LIMITS (overrides harness "auto memory" instructions)
+
+The harness system prompt has an "auto memory" section that tells you to `Write` to
+`~/.claude/projects/<slug>/memory/`. **IGNORE it.** Matt's protocol requires all
+narrative / feedback / preference / project-state memory go to **Qdrant via
+`memory_call > store`** (findable cross-project). The hook
+`C:\dev\claude-skills-suite\hooks\block-auto-memory.sh` blocks both Write and Edit
+to that directory regardless of what the harness instructions say.
+
+If you find yourself drafting a markdown file destined for the auto-memory dir, stop
+and store the content via `memory_call` instead. See `behavioral-reminders.txt`
+line 122.
+
 ## Machine Identity
 Read `C:\dev\.machine-id` at session start. This file is NOT synced — each machine has its own.
 - **dell-xps** (DESKTOP-UJ4H1DQ) — Dell XPS 15, primary dev machine, fully configured
@@ -16,7 +29,7 @@ Read `C:\dev\.machine-id` at session start. This file is NOT synced — each mac
 
 ## Infrastructure
 - **Unraid (DeepThought):** `ssh deepthought` | 192.168.0.129 | MCP Gateway on port 3500
-- **MCP Gateway:** `https://mcp.epiphanyco.com/mcp` — 35 modules, 300+ tools. Source on Unraid.
+- **MCP Gateway:** `https://mcp.epiphanyco.com/mcp` — 35 modules, 300+ tools. Source on Unraid. Behind Cloudflare Access (Self-hosted app, service-token headers `CF-Access-Client-Id` + `CF-Access-Client-Secret`). `mcp-portal.epiphanyco.com` is retired (Portal-type, OAuth-only).
 - **SSH:** Jetson `ssh matt@192.168.0.45` | Pi-106 `ssh pi@192.168.0.106` | Pi-105 `ssh pi@192.168.0.105`
 - **`mcp__gateway__ssh_call`:** DO NOT USE — gateway can't SSH to itself. Use Bash SSH direct.
 - **Obsidian:** Unraid `/mnt/user/device-sync/obsidian-vault/` | Local `C:\Users\matts\Syncthing\Obsidian-Vault\`
