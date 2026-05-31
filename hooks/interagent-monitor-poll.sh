@@ -25,18 +25,20 @@
 # ROBUSTNESS ─────────────────────────────────────────────────────────────────────
 # Every SSH/psql failure is swallowed so one transient error never kills the
 # monitor. BatchMode + ConnectTimeout mean it fails fast instead of hanging.
-# Remote poll interval defaults to 30s (be gentle on the DB).
+# Poll interval defaults to 5s — fast enough for live multi-session coordination
+# (a single SSH round-trip is ~0.3s, so the DB cost is negligible). Pass a larger
+# number for a gentler cadence on long idle watches.
 #
 # USAGE ──────────────────────────────────────────────────────────────────────────
-#   bash interagent-monitor-poll.sh          # loop forever, 30s interval
-#   bash interagent-monitor-poll.sh 45       # loop forever, 45s interval
+#   bash interagent-monitor-poll.sh          # loop forever, 5s interval
+#   bash interagent-monitor-poll.sh 30       # loop forever, 30s interval
 #   bash interagent-monitor-poll.sh --once   # single pass (for testing)
 
 set -uo pipefail
 
 ARG="${1:-}"
 ONCE=0
-INTERVAL=30
+INTERVAL=5
 case "$ARG" in
   --once)        ONCE=1 ;;
   ''|*[!0-9]*)   : ;;                 # empty or non-numeric -> keep default
