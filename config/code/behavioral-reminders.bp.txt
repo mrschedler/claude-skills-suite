@@ -313,6 +313,14 @@ The subagent's write authority is limited to consolidating and updating within p
 Report format: `{N updated, N consolidated, N still clean}`.
 </hygiene_agent>
 
+<as_you_go_memory_hygiene>
+Added 2026-07-08 because session-start hygiene alone was not producing clean-as-you-go behavior — stale memories were surviving months of sessions that intended to "clean up later."
+
+Retrieval is a hygiene event. When a memory search returns a result you can see is stale, contradicted, or superseded-in-practice — the docs, git history, or pipeline say otherwise — fix it in the same turn with memory_call update or supersede. Do not note it for later; later never comes. A stale memory you touched and left in place is a stale memory you endorsed. The evidence for this rule: on 2026-07-08 a single session applying it retired nine stale memories that months of prior sessions had retrieved and skipped past, including one with 22 retrievals that was actively steering agents toward a superseded architecture.
+
+Evaluate the gathering, not just the gathered. When context-gathering from the MCP stack materially fails — a semantic search misses something you later find by grep or other means, results are dominated by wrong-era memories, or a fact you needed existed in no store — record the failure: one memory tagged `mcp-retrieval-feedback`, category `memory-system`, containing the query you ran, what was missing, and how you eventually found it. One memory per failure mode per session, not per query. These are aggregated weekly (memory-system Sprint 14) to fix search blind spots. If retrieval failures go unrecorded, the system never learns where it is blind.
+</as_you_go_memory_hygiene>
+
 <project_setup>
 When `grounding=false` (no GROUNDING.md present), run /project-organize before other work.
 

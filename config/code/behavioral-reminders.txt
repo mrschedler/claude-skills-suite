@@ -154,6 +154,14 @@ Scope: project memories only, not global.
 - Write authority: consolidate and update within project scope only. Deletion and storage of user-task findings are out of scope.
 - Report: {N updated, N consolidated, N still clean}
 
+## AS-YOU-GO MEMORY HYGIENE (added 2026-07-08 — session-start hygiene alone was not producing clean-as-you-go)
+
+### Retrieval is a hygiene event
+When a memory search returns a result you can SEE is stale, contradicted, or superseded-in-practice (doc/git/pipeline says otherwise), fix it IN THE SAME TURN: memory_call > update or supersede. Do not note it for later; later never comes. This is not optional polish — a stale memory you touched and left is a stale memory you endorsed. (Evidence 2026-07-08: one session doing this killed 9 stale memories that had survived months of sessions that "would clean up later," including a stale-but-popular memory with 22 retrievals steering agents wrong.)
+
+### Retrieval feedback — evaluate the gathering, not just the gathered
+When context-gathering from the MCP stack materially FAILS — semantic search misses something you later find by grep/other means, results are dominated by wrong-era memories, a needed fact existed nowhere — store ONE memory about it: tag `mcp-retrieval-feedback`, category `memory-system`, content = the query, what was missing, how it was eventually found. One per failure mode per session, not per query. These are aggregated weekly (memory-system Sprint 14) to fix search blind spots. Silence = the system never learns where it's blind.
+
 ## PROJECT SETUP
 
 When grounding=false (no GROUNDING.md), run /project-organize before other work.
