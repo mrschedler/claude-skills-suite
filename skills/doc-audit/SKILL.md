@@ -57,7 +57,8 @@ Catalog all documentation in the project:
 - `GROUNDING.md` — does it exist? Is it current? Does it align with README?
 - `ENGINEERING-NOTEBOOK.md` — does it exist? Is the last entry recent relative to project activity?
 - `project-context.md` — does it exist? Is it consistent with GROUNDING.md?
-- `CURRENT-STATE.md` — does it exist? Is it stale relative to recent commits?
+- `PROGRESS.md` — does it exist? Is it stale relative to recent commits? (CURRENT-STATE.md / STATUS.md / PROJECT-STATUS.md are non-standard aliases — flag for merge into PROGRESS.md)
+- `GROUNDING.md` staleness inversion — flag session-dated status updates inside GROUNDING.md; those belong in PROGRESS.md (GROUNDING is static)
 - `CONTRIBUTING.md`, `CHANGELOG.md`, `LICENSE` — do they exist?
 - `docs/` directory — what's in it?
 - API documentation (generated or hand-written)

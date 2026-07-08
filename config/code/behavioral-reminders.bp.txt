@@ -186,7 +186,7 @@ Right: "Memory check: 0 issues found — three memories about auth middleware, a
 </examples>
 </memory_consistency_check>
 
-Step 5: Check interagent_call > inbox `{from: machine_id}` for assignments from other machines.
+Step 5: Check interagent_call > inbox `{machine: machine_id}` for assignments. ROUTING: the inbox is machine-keyed, so two sessions on one machine share it. Claim only messages whose context_refs include `{type:"project", id:<this project>}` (project = git-root/cwd basename) or that target this session; surface untagged/broadcast messages without claiming; skip mail tagged for another project. The interagent-inbox-nudge UserPromptSubmit hook re-issues this check on later turns, so new mail surfaces mid-session without a human relay (push-on-activity). COMMANDS: "check interagent" = run this inbox check once, now. "monitor interagent" = arm the Monitor tool with `bash /c/dev/claude-skills-suite/hooks/interagent-monitor-poll.sh 30` (persistent:true) so the session reacts to new mail while idle; each emitted line is a wake event — on it, check interagent to read+claim. "stop monitoring" = TaskStop that monitor. See hooks/README-interagent-push.md.
 
 Step 6: Register this session via coordination_call > register_session `{session_id, cwd, project, hostname}`.
 
@@ -324,18 +324,19 @@ A new project's GROUNDING.md needs four things:
 </project_setup>
 
 <long_arc_project_structure>
-Projects spanning weeks or months accumulate state across many sessions. To keep that state coherent and scannable, any such project uses a fixed set of six load-bearing artifacts. Other stores (pipeline, Qdrant, Neo4j, MongoDB) exist to support these, not duplicate them.
+Projects spanning weeks or months accumulate state across many sessions. To keep that state coherent and scannable, any such project uses a fixed set of seven load-bearing artifacts. Other stores (pipeline, Qdrant, Neo4j, MongoDB) exist to support these, not duplicate them.
 
-<six_artifacts>
+<seven_artifacts>
 | Artifact | Role | Update cadence |
 |----------|------|----------------|
-| GROUNDING.md | WHY — constraints, anti-patterns, decisions that don't change | rarely |
+| GROUNDING.md | WHY — goals, direction, where things are, constraints, anti-patterns, decisions. STATIC: read to understand importance and direction, never current status | rarely |
 | CLAUDE.md | HOW — agent conventions and tool paths for this repo | when conventions shift |
+| PROGRESS.md | NOW — current state, sprint/phase status, recent changes, blockers. The only root file that changes per session | per significant session |
 | ENGINEERING-NOTEBOOK.md | JOURNEY — numbered dated entries; supersede don't delete | per significant session |
 | artifacts/plans/current.md | NORTH STAR — the active plan: phases, milestones, exit gates | per phase or pivot |
 | artifacts/project.db | DATA — structured findings, experiments, reviews, decisions | per significant artifact |
 | GOTCHAS.md | TRAPS — tactical operational hazards before risky work | when bitten |
-</six_artifacts>
+</seven_artifacts>
 
 <plan_doc_is_spine>
 The current plan lives at `artifacts/plans/current.md` — this is either the real active plan file or a symlink pointing at one (e.g. `plans/phase-d-custom-usbd.md`). When the plan pivots — meaning the approach fundamentally changes, not minor updates — create a new file in `plans/`, move the old one to `plans/archive/` with a supersession header explaining why, and update the `current.md` pointer. Never edit the plan doc in place after a pivot; preserve the history so the reasoning for the pivot survives. Notebook entries and artifact DB records reference plan docs by filename so the cross-references stay stable.
@@ -346,10 +347,11 @@ A fresh agent opening a long-arc project should read in this order to become pro
 
 1. GROUNDING.md — why the project exists and what's forbidden (2 min)
 2. CLAUDE.md — repo-specific conventions (1 min)
-3. artifacts/plans/current.md — active phase, current exit gate, work in flight (5 min)
-4. Last 3 entries of ENGINEERING-NOTEBOOK.md — recent journey and decisions (3 min)
-5. GOTCHAS.md — scan before touching risky areas
-6. memory_call > rehydrate with the task topic — targeted Qdrant context
+3. PROGRESS.md — current state, blockers (2 min)
+4. artifacts/plans/current.md — active phase, current exit gate, work in flight (5 min)
+5. Last 3 entries of ENGINEERING-NOTEBOOK.md — recent journey and decisions (3 min)
+6. GOTCHAS.md — scan before touching risky areas
+7. memory_call > rehydrate with the task topic — targeted Qdrant context
 
 This order prioritizes stable understanding (why, how, what) before recent state (journey, traps, specifics).
 </reading_order>
@@ -372,14 +374,14 @@ Cross-project or cross-machine work — inbox assignments, shared infrastructure
 Per-task pipeline entries for in-project work become redundant with the plan doc and notebook entries. They also drift, requiring manual "scrub" sessions to reconcile. Don't create that drift tax.
 </when_to_create_pipeline_tasks>
 
-<progress_md_is_obsolete>
-Do not create PROGRESS.md for new projects, and consider removing it from existing ones at a natural break. Its historical role — tracking active state, exit gates, and current work — is now covered by:
-- `artifacts/plans/current.md` (active state and exit gates)
-- Latest ENGINEERING-NOTEBOOK entry (recent narrative)
-- `artifacts/project.db` recent records (structured data from the work)
+<progress_md_role_discipline>
+PROGRESS.md is the canonical home for status updates — amended 2026-07-07, reversing the earlier "obsolete" ruling. Session-to-session state changes go here, never into GROUNDING.md; if you find yourself editing GROUNDING.md more than about once a month, status is landing in the wrong file.
 
-Maintaining PROGRESS.md as an additional summary creates drift against the plan doc and requires manual reconciliation.
-</progress_md_is_obsolete>
+The earlier ban existed because PROGRESS.md drifted by mirroring the plan doc and pipeline. Don't repeat that failure:
+- PROGRESS.md states WHERE we are. It links to the plan doc's phases and exit gates rather than duplicating them, and it does not retell notebook entries.
+- Every update carries a date. Stale sections get corrected or deleted, not appended around.
+- CURRENT-STATE.md, STATUS.md, and PROJECT-STATUS.md are non-standard aliases — merge them into PROGRESS.md when touched.
+</progress_md_role_discipline>
 </long_arc_project_structure>
 
 <after_significant_work>

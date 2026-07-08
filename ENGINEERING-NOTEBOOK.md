@@ -688,3 +688,191 @@ type=decision
 - Qdrant memory `2fbafdfb` (2026-04-17): literal "plan scrub" session reconciling 5 stores — concrete drift-tax artifact
 - Qdrant search hint: "long-arc project structure six artifacts plan doc spine"
 - Git: commit following this entry, plus follow-up commits migrating QL-G3-Enterprise and updating behavioral-reminders.txt
+
+---
+
+## Entry 15 -- Interagent PUSH: Inbox-Drain Nudge Hook (2026-05-25)
+
+date=2026-05-25
+type=feature
+status=research-wip
+assignment=interagent #115
+
+**What we're building (and why):**
+A push-style notification path so two Claude Code sessions on the same machine can
+hand each other work WITHOUT Matt manually telling a session "go check interagent."
+`interagent` (gateway `send`/`inbox`/`claim`/`complete`) is a durable mailbox but
+it is **pull-only** and **keyed by machine, not session** — so both sessions on
+dell-xps share one inbox and neither notices new mail on its own. The manual relay
+is the whole pain point. The fix is to make the **receiver** auto-drain its inbox.
+
+This is iteration 1 of a research WIP, not a finished system. The deliverable is a
+surfacing layer; true idle-reaction (iteration 2) and possible upstream addressing
+(iteration 3) are deferred — see roadmap in `hooks/README-interagent-push.md`.
+
+**Key finding that reshaped the design:**
+Assignment #115's literal Design A says "a hook calls interagent inbox." That is
+**both forbidden and impossible here.** Forbidden: hooks in this suite are
+local-only — no SSH/MCP/HTTP (CLAUDE.md guardrail, butterfly-wings blast radius;
+Entry 9). Impossible: a shell `command` hook cannot invoke an MCP tool —
+`interagent_call` lives in the agent, not the CLI. The established pattern (Entry 9,
+and `session-end-summary.sh`'s `action=...` lines) is **the local hook emits a
+reminder; the agent makes the MCP call.** `register_session` and the prior
+session-start inbox check are likewise *protocol steps the agent runs* (Steps 5/6
+of behavioral-reminders), not hook code. So Design A became: **hook nudges (local,
+fail-open), agent drains (MCP).**
+
+**Changes:**
+| What | Detail |
+|------|--------|
+| `hooks/interagent-inbox-nudge.sh` (new) | `UserPromptSubmit` hook. Throttled (once/120s per project via a non-synced LOCALAPPDATA timestamp file). Emits an action-reminder to call `inbox` and claim project-tagged mail. Local-only, always exits 0. |
+| `config/code/settings.json` → `hooks.UserPromptSubmit` (new) | Wires the hook. Chosen over also adding it to `SessionStart` because Step 5 of the protocol already covers session start; the *new* capability is re-checking on later turns. |
+| `config/code/behavioral-reminders.bp.txt` Step 5 (edit) | Added the routing convention; fixed the inbox param (`{from:…}` → `{machine:…}` — `from` is a `send` param). |
+| `hooks/README-interagent-push.md` (new) | Design rationale, routing convention, Monitor recipe, roadmap. |
+
+**Routing decision (machine inbox → per session):**
+Messages are tagged by **project** in `context_refs` (`{type:"project", id:<key>}`,
+key = git-root/cwd basename). Receiver claims only its-project + session-targeted
+mail; surfaces untagged broadcasts without claiming; skips other-project mail.
+Chosen over (a) per-session addressing baked into the gateway (more capable but
+lands in mcp-gateway, deferred to iteration 3) and (b) a redis per-project queue
+(extra infra for no current benefit). Project-tag filtering needs zero gateway
+change and covers the common case (one session per folder). Same-folder collision
+is the known gap — add a `{type:"session", id:…}` ref if it ever arises.
+
+**Why nudge-not-fetch is also the robust choice:**
+The hook runs on every prompt; keeping network off it means a slow/down gateway can
+never block or error Matt's turn. The throttle keeps an active session from being
+nagged. Cost: up to one possibly-empty `inbox` MCP call per 120s of active work, and
+the agent must honor the reminder (consistent with how it already honors Step 5 /
+deregister / memory-store reminders).
+
+**Deferred (roadmap):**
+1. **Idle reaction (iteration 2):** a `Monitor` poller that tails `inbox` ~30s and
+   streams new mail in, so an *idle* session reacts with no turn. The poller is the
+   clean home for the network call the hook can't make (gateway → local spool → hook
+   reads local). Documented as opt-in, not wired on.
+2. **Upstream per-session addressing (iteration 3):** only if project-tag routing
+   proves too coarse; that work would land in **mcp-gateway**.
+3. **Tune throttle (120s is a guess); revisit broadcast claim races.**
+
+**Cross-project impact (butterfly wings):**
+Touches the two highest-amplification files — `settings.json` (new hook fires every
+prompt, every session, every machine) and `behavioral-reminders.bp.txt` (Step 5).
+Hook is fail-open and silent when throttled or empty, so worst case is a stray
+reminder line, never a blocked turn.
+
+**Evidence:**
+- Hook tested: emits correct machine=dell-xps / project=claude-skills-suite on first
+  run, silent on throttled second run; `settings.json` validated as JSON with
+  `hooks.UserPromptSubmit` present.
+- interagent assignment #115 (claimed by dell-xps 2026-05-25).
+- Precedent: Entry 9 (transport-agnostic agent-native hooks), `session-end-summary.sh`.
+- Qdrant search hint: "interagent push inbox drain nudge hook per-session routing".
+
+---
+
+## Entry 16 -- Interagent PUSH: Idle-Reaction Monitor + Command Vocabulary (2026-05-25)
+
+date=2026-05-25
+type=feature
+status=research-wip
+assignment=interagent #115
+supersedes=Entry 15's "iteration 2 deferred"
+
+**What:** Built iteration 2 (the idle-reaction layer Entry 15 deferred) and locked
+the command vocabulary, same session as Entry 15.
+
+- `hooks/interagent-monitor-poll.sh` (new) — poll loop run by the `Monitor` tool
+  (`persistent:true`, 30s). Emits one stdout line per NEW pending message routed
+  to this session; each line is a chat event that wakes an idle session, which
+  then `check`s interagent over MCP to read + claim. Has a `--once` flag for
+  testing.
+- `behavioral-reminders.bp.txt` Step 5 + `README-interagent-push.md` — recorded the
+  vocabulary so every session/machine answers to the same words.
+
+**Command vocabulary (Matt's decision):**
+| Matt says | Means |
+|-----------|-------|
+| **interagent** | the mailbox (noun) |
+| **check interagent** | look once, now (one MCP `inbox` pull) |
+| **monitor interagent** | arm the persistent poller; react while idle until stopped |
+| **stop monitoring** | `TaskStop` the poller |
+Matt's reasoning: *check* = a single look, *monitor* = frequency + repetition —
+and "monitor" maps 1:1 onto the actual `Monitor` tool, so the word he says is the
+mechanism. The `UserPromptSubmit` nudge stays unnamed (automatic plumbing).
+
+**Why the poller may do network when the hook may not:** it is NOT a hook — it's a
+Monitor-driven background process — so the local-only hook rule doesn't apply. It
+reads the `interagent_assignments` PG table directly over SSH (`ssh deepthought` →
+`pgvector`): simplest path, no gateway change. Division of labor mirrors the hook:
+poller = lightweight trigger ("there's mail"), agent = drains/claims over MCP.
+Project routing + new-vs-seen dedup live in the poller (node filter on the jsonb
+`context_refs`; non-synced seen-file per machine+project, so the project string
+never enters the SSH/psql quoting).
+
+**Evidence (tested end-to-end, not just asserted):**
+- Confirmed table schema over SSH (`context_refs jsonb`, `ttl_hours`, tz timestamps).
+- Sent 3 real messages — #116 tagged `claude-skills-suite` (mine), #117 tagged
+  `QL-G3-Enterprise` (other), #118 untagged (broadcast). Poller pass 1 emitted
+  #116 + #118 and correctly SKIPPED #117; pass 2 emitted nothing (seen-file dedup).
+  Test rows deleted (`DELETE 3`, verified count 0); test seen-file cleared.
+- Qdrant memory `2eee33f2` updated to iteration 2 + vocabulary.
+- Qdrant search hint: "monitor interagent idle reaction poller SSH postgres command vocabulary check monitor".
+
+**Still open:** per-session addressing upstream (mcp-gateway) only if project-tag
+routing proves too coarse; tune 120s nudge throttle / 30s poll; seen-file grows
+unbounded (prune later); same-folder two-session collision still needs a
+`{type:"session"}` ref. #115 remains claimed pending Matt's sign-off.
+
+## Entry 17 -- PROGRESS.md Restored: Seventh Load-Bearing Artifact (2026-07-07)
+
+date=2026-07-07
+type=decision
+status=shipped
+supersedes=Entry 14 (partially — the "drop PROGRESS.md" ruling only)
+
+**What changed:**
+PROGRESS.md is back as a sanctioned root file — the seventh load-bearing artifact.
+Matt's directive (2026-07-07): GROUNDING.md must stay relatively STATIC (project
+goals, where things are, why we're building — what an agent needs to understand
+importance and direction). Session-to-session status updates must NOT land there;
+they go in PROGRESS.md. Trigger case: an agent (correctly, per the then-current
+standard) wrote a dated status-verification block into QL-Support-Portal's
+GROUNDING.md, and the mismatch surfaced the gap between the documented standard
+and Matt's actual mental model.
+
+**Role separation (the fix for Entry 14's drift problem):**
+| File | Time axis |
+|------|-----------|
+| GROUNDING.md | WHY — timeless |
+| PROGRESS.md | NOW — current state, blockers, recent changes |
+| artifacts/plans/current.md | NEXT — phases, milestones, exit gates |
+| ENGINEERING-NOTEBOOK.md | PAST — journey, superseded thinking |
+
+Entry 14 killed PROGRESS.md because it was "doing three jobs badly" — mirroring
+the plan doc and pipeline, going stale, requiring scrub sessions. That diagnosis
+was correct; the amputation was wrong. Practice never followed: feature-dev kept
+creating its thin PROGRESS.md, rehydrate kept reading it, QL-G3-Enterprise kept
+one, and projects grew non-standard aliases (PROJECT-STATUS.md at QL-Support-Portal)
+because status content had nowhere sanctioned to live. When the standard bans a
+file that practice keeps recreating under other names, the standard is wrong.
+
+**Anti-drift rules carried forward from Entry 14's lesson:**
+- PROGRESS.md states WHERE we are; it links to plan-doc phases/exit-gates, never
+  duplicates them; never retells notebook entries.
+- Every update is dated. Stale sections get corrected or deleted, not appended around.
+- CURRENT-STATE.md / STATUS.md / PROJECT-STATUS.md are non-standard aliases —
+  merge into PROGRESS.md when touched.
+
+**Files updated:** behavioral-reminders.txt (artifact table now 7 rows, reading
+order now 7 steps, "PROGRESS.md is obsolete" section replaced with role
+discipline), project-organize/SKILL.md (creates PROGRESS.md for long-arc, template
+added as 2.4, ban list + exit conditions + reading order updated, GROUNDING
+template's Current State section now a static pointer), hygiene-check invariant 6,
+rehydrate artifact table, doc-audit inventory, project-organize
+references/type-adaptations.md (CURRENT-STATE -> PROGRESS.md). First project
+migrated: QL-Support-Portal (PROJECT-STATUS.md -> PROGRESS.md, dynamic state moved
+out of GROUNDING.md).
+
+**Qdrant:** search "PROGRESS.md restored root file standard seventh artifact"

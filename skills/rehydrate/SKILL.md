@@ -74,7 +74,7 @@ project it has landed in.
 | GOTCHAS.md | `<root>/GOTCHAS.md` | optional, scan-before-risk |
 | Artifact DB | `<root>/artifacts/project.db` + `<root>/artifacts/db.sh` | long-arc projects |
 | Project-specific extension | `<root>/.claude/rehydrate-extra.md` | optional |
-| Legacy PROGRESS.md | `<root>/PROGRESS.md` | obsolete per behavioral-reminders, but read if present |
+| PROGRESS.md | `<root>/PROGRESS.md` | long-arc projects — the NOW file (current state, blockers; standard as of 2026-07-07) |
 
 If `GROUNDING.md` is missing entirely, stop and tell the user this looks like
 an unorganized project — suggest `/project-organize` and exit.
@@ -84,8 +84,20 @@ an unorganized project — suggest `/project-organize` and exit.
 - **GROUNDING.md** — full read. The why, the constraints, the anti-patterns.
 - **CLAUDE.md** — full read. The how-to-work-here, the SSH patterns, the
   reading-order overrides for this specific project.
+- **Follow CLAUDE.md's "read once per session" pointers.** If CLAUDE.md cites
+  any doc with language like "read once per session", "read this AFTER
+  GROUNDING", "read this before any other agent-facing doc", or
+  "Overrides ... on conflict" — that doc is part of the contract, not optional
+  context. Read it now, before tier 2. These pointers are load-bearing:
+  CLAUDE.md is short by design, and the pointers are how a project hands you
+  its response-format, autonomy, and agent-behavior overrides. Skipping the
+  pointer is the documented failure mode — agents read CLAUDE.md, see the
+  pointer, treat CLAUDE.md as terminal, and produce output that the project's
+  agent guide explicitly forbids (verbose tables, trailing summaries, buffets,
+  speculation as assertion). Search CLAUDE.md (and GROUNDING.md) for the
+  phrases above; chase every hit.
 
-These two are the contract. Everything else is journey/state.
+These reads are the contract. Everything else is journey/state.
 
 ### 4. Read tier 2 — if present (skip on `--quick` except last notebook entry)
 

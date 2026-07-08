@@ -21,6 +21,7 @@ Created when the project is long-arc (expected to span weeks/months, accumulatin
 
 | File | Role |
 |------|------|
+| **PROGRESS.md** | NOW — current state, sprint/phase status, recent changes, blockers. The only root file that changes per session |
 | **ENGINEERING-NOTEBOOK.md** | JOURNEY — numbered dated entries, supersede don't delete |
 | **artifacts/plans/current.md** | NORTH STAR — active plan: phases, milestones, exit gates |
 | **artifacts/project.db** | DATA — structured findings, experiments, reviews, decisions |
@@ -32,7 +33,7 @@ Created occasionally for specific project types:
 |------|---------------|
 | **project-context.md** | Technically complex projects (multiple services, non-obvious architecture) |
 
-Does NOT create: coterie.md, cnotes.md, todo.md, features.md, project-plan.md, prd.json, progress.txt, **PROGRESS.md**, **CURRENT-STATE.md**, **PLAN-\*.md** (per cross-cutting rule 2 + long-arc structure decision 2026-04-20 — active state lives in `artifacts/plans/current.md`, not in separate tracker files).
+Does NOT create: coterie.md, cnotes.md, todo.md, features.md, project-plan.md, prd.json, progress.txt, **CURRENT-STATE.md**, **STATUS.md / PROJECT-STATUS.md**, **PLAN-\*.md** (per cross-cutting rule 2). Status content belongs in **PROGRESS.md** (the one sanctioned dynamic root file — standard amended 2026-07-07, reversing the 2026-04-20 ban); detailed plans belong in `artifacts/plans/current.md`. Merge non-standard status aliases into PROGRESS.md when found.
 
 ## Inputs
 
@@ -108,7 +109,7 @@ git log --format="%ad %s" --date=short | head -1   # project start date
 #### 1.6 Classify the project
 
 Determine: empty vs. existing, needs notebook?, needs project-context?, needs
-CURRENT-STATE?, has pipeline entry?, has stale docs?
+PROGRESS.md?, has pipeline entry?, has stale docs?
 
 Present the classification to the user:
 > "Project assessment:
@@ -157,7 +158,9 @@ it from Phase 1 discovery (memories, git history, existing docs, user input).
 learned lesson — if it's in GROUNDING.md, someone already got burned.]
 
 ## Current State
-[What exists today. Last updated date. Phase/sprint if applicable.]
+[STATIC summary only: what phase of life the project is in and a pointer —
+"Current status, blockers, and recent changes live in PROGRESS.md."
+Session-to-session updates NEVER go here; GROUNDING.md changes rarely.]
 
 ## Key Documents
 | Document | Purpose |
@@ -195,7 +198,33 @@ history, backfill key entries from:
 Evidence references use Qdrant search hints, not UUIDs:
 `Qdrant: search "keywords describing the memory"`
 
-#### 2.4 artifacts/ structure (if long-arc project)
+#### 2.4 PROGRESS.md (if long-arc project)
+
+The NOW file — the single sanctioned home for dynamic status at root. Template:
+
+```markdown
+# PROGRESS.md — {{PROJECT_NAME}}
+
+> Current state as of {{DATE}}. Static context in GROUNDING.md; detailed plan in artifacts/plans/current.md.
+
+## Where We Are
+[3-8 lines: phase/sprint, what works, what's in flight]
+
+## Blockers
+| Item | Blocks | Status |
+|------|--------|--------|
+
+## Recent Changes
+| Date | Change |
+|------|--------|
+```
+
+**Role discipline (why this file was once banned — don't repeat the failure):**
+- States WHERE we are; links to the plan doc's phases/exit-gates rather than duplicating them
+- Every update is dated; stale sections get corrected or deleted, not appended around
+- Status updates go HERE, never into GROUNDING.md
+
+#### 2.5 artifacts/ structure (if long-arc project)
 
 A long-arc project is one expected to span weeks or months with multiple sessions accumulating decisions, experiments, and plan pivots. Characteristics: active pipeline entry with multiple sprints, significant git history, or user confirmation that this is multi-session work.
 
@@ -210,6 +239,17 @@ artifacts/
 │   └── archive/       # Superseded plans live here, never deleted
 └── reviews/           # Review artifacts (optional, created when first review runs)
 ```
+
+> **Non-git projects:** `db.sh` derives the DB path from `git rev-parse`, which fails
+> in a folder that isn't a git repo (e.g. a Syncthing-shared project, not a clone) —
+> `db_init` then silently targets `/artifacts/project.db`. Set `PROJECT_DB` explicitly
+> first so the DB lands in the project:
+> ```bash
+> export PROJECT_DB="$(pwd)/artifacts/project.db"
+> source artifacts/db.sh && db_init
+> ```
+> (Same fix as `init-db` Step 4 / its error table.) Verify with `db_list` (empty on a
+> fresh DB). On Windows, ensure `sqlite3` is on PATH first (see global CLAUDE.md).
 
 **`artifacts/plans/current.md` template** (if the project doesn't have an active plan):
 
@@ -234,7 +274,7 @@ artifacts/
 
 **Plan versioning rule:** When the plan fundamentally pivots (not minor updates), create a new file in `plans/`, move the old plan to `plans/archive/` with a supersession header, and update `current.md`. Never edit a superseded plan in place.
 
-#### 2.5 .gitignore (if missing or thin)
+#### 2.6 .gitignore (if missing or thin)
 
 Create or expand based on the project's tech stack. Always include:
 ```
@@ -248,7 +288,7 @@ tmp/
 
 Add language/framework-specific patterns as detected.
 
-#### 2.6 Pipeline entry (if missing and MCP available)
+#### 2.7 Pipeline entry (if missing and MCP available)
 
 Create via `project_call > create_project` with:
 - Accurate description from GROUNDING.md
@@ -317,8 +357,9 @@ Read `references/type-adaptations.md` for type-specific guidance.
 
 - GROUNDING.md exists and a fresh agent can understand the project from it alone
 - CLAUDE.md references GROUNDING.md as step 1
-- For long-arc projects: `artifacts/plans/current.md` exists (real file or symlink), `artifacts/project.db` initialized, ENGINEERING-NOTEBOOK.md exists with at least Entry 0
-- No PROGRESS.md, CURRENT-STATE.md, or PLAN-\*.md at root (their role belongs to `artifacts/plans/current.md`)
+- For long-arc projects: PROGRESS.md exists (dynamic NOW file), `artifacts/plans/current.md` exists (real file or symlink), `artifacts/project.db` initialized, ENGINEERING-NOTEBOOK.md exists with at least Entry 0
+- GROUNDING.md contains no session-dated status updates (those belong in PROGRESS.md)
+- No CURRENT-STATE.md, STATUS.md, PROJECT-STATUS.md, or PLAN-\*.md at root (merge status aliases into PROGRESS.md; plans into `artifacts/plans/`)
 - No root docs claim "read this first" unless they're GROUNDING.md or CLAUDE.md
 - No stale docs send agents to pursue wrong-era work
 - .gitignore covers generated/ephemeral content
@@ -329,10 +370,11 @@ Read `references/type-adaptations.md` for type-specific guidance.
 A fresh agent on the organized project should read:
 1. GROUNDING.md (why/forbidden)
 2. CLAUDE.md (repo conventions)
-3. `artifacts/plans/current.md` (active phase, exit gate) — if long-arc
-4. Last 3 ENGINEERING-NOTEBOOK entries (recent journey) — if long-arc
-5. GOTCHAS.md scan before risky work — if present
-6. `memory_call > rehydrate` for targeted topic
+3. PROGRESS.md (current state, blockers) — if long-arc
+4. `artifacts/plans/current.md` (active phase, exit gate) — if long-arc
+5. Last 3 ENGINEERING-NOTEBOOK entries (recent journey) — if long-arc
+6. GOTCHAS.md scan before risky work — if present
+7. `memory_call > rehydrate` for targeted topic
 
 ---
 

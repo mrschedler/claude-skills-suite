@@ -33,7 +33,7 @@ See `artifacts/plans/hygiene-check-skill.md` for the current list with reasoning
 3. Neo4j observation coverage for structural-entity decisions
 4. Engineering notebook staleness vs recent activity
 5. Contradictions — old memories vs current file tree / git log
-6. Long-arc artifacts present (`artifacts/plans/current.md`, `artifacts/project.db`, GOTCHAS.md if applicable; no PROGRESS.md / CURRENT-STATE.md / PLAN-\*.md at root)
+6. Long-arc artifacts present (PROGRESS.md, `artifacts/plans/current.md`, `artifacts/project.db`, GOTCHAS.md if applicable; no CURRENT-STATE.md / STATUS.md / PROJECT-STATUS.md / PLAN-\*.md at root; no session-dated status updates inside GROUNDING.md — standard amended 2026-07-07)
 
 ## How the skill works (high level)
 

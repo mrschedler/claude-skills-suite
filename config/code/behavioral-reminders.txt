@@ -161,12 +161,13 @@ New projects need GROUNDING.md covering: (1) why it exists (2) key decisions and
 
 ## LONG-ARC PROJECT STRUCTURE
 
-Projects spanning weeks or months use these six load-bearing artifacts. Other stores are secondary.
+Projects spanning weeks or months use these seven load-bearing artifacts. Other stores are secondary.
 
 | Artifact | Role | Update cadence |
 |----------|------|----------------|
-| GROUNDING.md | WHY — constraints, anti-patterns, decisions that don't change | rarely |
+| GROUNDING.md | WHY — goals, direction, where things are, constraints, anti-patterns, decisions. STATIC — an agent reads it to understand importance and direction, not current status | rarely |
 | CLAUDE.md | HOW — agent conventions, tool paths for this repo | when conventions shift |
+| PROGRESS.md | NOW — current state, sprint/phase status, recent changes, blockers. The ONLY root file that changes per session | per significant session |
 | ENGINEERING-NOTEBOOK.md | JOURNEY — numbered dated entries, supersede don't delete | per significant session |
 | artifacts/plans/current.md | NORTH STAR — active plan: phases, milestones, exit gates | per phase/pivot |
 | artifacts/project.db | DATA — structured findings, experiments, reviews, decisions | per significant artifact |
@@ -181,10 +182,11 @@ Projects spanning weeks or months use these six load-bearing artifacts. Other st
 ### Reading order for fresh agent
 1. GROUNDING.md (why/forbidden)
 2. CLAUDE.md (repo conventions)
-3. artifacts/plans/current.md (active phase, exit gate)
-4. Last 3 ENGINEERING-NOTEBOOK entries (recent journey)
-5. GOTCHAS.md scan before risky work
-6. memory_call rehydrate for targeted topic
+3. PROGRESS.md (current state, blockers)
+4. artifacts/plans/current.md (active phase, exit gate)
+5. Last 3 ENGINEERING-NOTEBOOK entries (recent journey)
+6. GOTCHAS.md scan before risky work
+7. memory_call rehydrate for targeted topic
 
 ### Secondary layers — narrowed roles
 - Pipeline (project_call): project-level metadata + phase transitions only. Not per-task.
@@ -196,8 +198,12 @@ Projects spanning weeks or months use these six load-bearing artifacts. Other st
 - In-project work → local docs + Qdrant + artifact DB. No pipeline task.
 - Cross-project/cross-machine work (inbox class) → inbox + pipeline task at receiving project.
 
-### PROGRESS.md is obsolete
-Role splits: plan doc = active work, latest notebook entry = recent narrative, DB rows = data. Don't create it for new projects; remove from existing ones at a natural break.
+### PROGRESS.md role discipline (amended 2026-07-07; reverses the 2026-04-20 "obsolete" ruling)
+PROGRESS.md is the canonical home for STATUS UPDATES. Session-to-session state changes go here — never into GROUNDING.md. GROUNDING.md stays static (goals, direction, decisions); if you're editing GROUNDING.md more than once a month, you're putting status in the wrong file.
+Anti-drift rules (this is why it was briefly killed — don't repeat the failure):
+- PROGRESS.md states WHERE we are; it does not duplicate the plan doc's phases/exit-gates (link to them) or retell notebook entries.
+- Every update stamps a date. Stale sections get corrected or deleted, not appended around.
+- CURRENT-STATE.md / STATUS.md / PROJECT-STATUS.md are non-standard aliases — merge into PROGRESS.md when touched.
 
 ## AFTER SIGNIFICANT WORK
 
