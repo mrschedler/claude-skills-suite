@@ -1,7 +1,7 @@
 ---
 name: rehydrate
-description: "Orient a fresh agent into an existing project by reading the load-bearing artifacts in the documented order (GROUNDING, CLAUDE, plan doc, last notebook entries, GOTCHAS, artifact DB, MCP memory). Read-only for project state; bounded session-bookkeeping writes (register_session, plus whatever .claude/rehydrate-extra.md authorizes) ARE part of the contract. Use at session start, after /clear, when picking up a project after time away, or when an agent feels disoriented. Triggers on 'rehydrate', 'orient me', 'load me into <project>', 'catch me up', and explicit /rehydrate."
-argument-hint: "[topic — focus for memory rehydrate] [--quick] [--no-mcp] [--no-pipeline]"
+description: "Orient a fresh agent into an existing project by reading the load-bearing artifacts in the documented order (GROUNDING, CLAUDE, plan doc, last notebook entries, GOTCHAS, artifact DB, MCP memory). Read-only for project state; bounded session-bookkeeping and session-janitor memory writes ARE part of the contract. Default: apply ≤5 memory auto-heals after rehydrate. Use at session start, after /clear, when picking up a project after time away, or when an agent feels disoriented. Triggers on 'rehydrate', 'orient me', 'load me into <project>', 'catch me up', and explicit /rehydrate."
+argument-hint: "[topic — focus for memory rehydrate] [--quick] [--no-mcp] [--no-pipeline] [--no-hygiene]"
 ---
 
 # rehydrate
@@ -10,21 +10,26 @@ Load an agent into a project by reading the load-bearing artifacts in the order
 documented in `behavioral-reminders.txt` and the project's own CLAUDE.md.
 
 **Read-only for project state.** The skill does not scaffold, create
-notebook entries, modify plans/docs, or auto-fix hygiene flags. If
-artifacts are missing, report — do not create them. Use
-`/project-organize` for scaffolding, `/meta-join` for full onboard.
+notebook entries, or modify plans/docs/code. If artifacts are missing,
+report — do not create them. Use `/project-organize` for scaffolding,
+`/meta-join` for full onboard.
 
-**Bounded session-bookkeeping writes ARE allowed** — specifically, the
-calls in Step 6 (`coordination_call > register_session` etc.) and any
-steps a project's `.claude/rehydrate-extra.md` declares (e.g. a discipline
-gate script that writes a `SESSION-START-AUDIT` DB record + memory
-digest writeback). These exist to enable continuity between agent
-sessions, not to change project state. **If you skip them citing the
-"read-only" rule, you are misreading the contract** — the read-only
-boundary is around project state (code, plans, docs, notebooks), not
-around session metadata. Documented failure mode 2026-05-13 PM in
-quicklinks-g3-enterprise: fresh agent treated rehydrate-extra writes as
-violations of the read-only rule, skipped them, broke memory continuity.
+**Bounded writes ARE allowed** — two classes:
+
+1. **Session bookkeeping** — Step 6 (`coordination_call > register_session`
+   etc.) and any steps a project's `.claude/rehydrate-extra.md` declares
+   (discipline-gate audit records, memory digest writeback). Continuity
+   between sessions, not project-state changes.
+2. **Session janitor (Step 8, default on)** — ≤5 memory auto-heals
+   (supersede / update / confirm / tag). Removes gunk from the active
+   surface so the next agent is not steered by stale claims. Supersede-only
+   — never `memory_call > delete`. Not a full `/memory-sleep` pass.
+
+**If you skip bookkeeping or janitor citing "read-only," you are misreading
+the contract** — the read-only boundary is project state (code, plans, docs,
+notebooks), not session metadata or memory-surface cleanup. Documented
+failure mode 2026-05-13 PM in quicklinks-g3-enterprise: fresh agent treated
+rehydrate-extra writes as violations, skipped them, broke memory continuity.
 
 ## When to use
 
@@ -46,6 +51,9 @@ violations of the read-only rule, skipped them, broke memory continuity.
   when the gateway is degraded. Don't fail the whole rehydration on a gateway
   miss either way; this flag just suppresses the attempt.
 - `--no-pipeline` — skip `project_call > list_phases` but keep memory rehydrate.
+- `--no-hygiene` — orient only: skip Step 8 session janitor (no memory auto-heals).
+  Use when you only need the contract and recent context without touching Qdrant
+  writes. Default is janitor **on** when MCP rehydrate runs.
 
 ## Instructions
 
@@ -84,18 +92,10 @@ an unorganized project — suggest `/project-organize` and exit.
 - **GROUNDING.md** — full read. The why, the constraints, the anti-patterns.
 - **CLAUDE.md** — full read. The how-to-work-here, the SSH patterns, the
   reading-order overrides for this specific project.
-- **Follow CLAUDE.md's "read once per session" pointers.** If CLAUDE.md cites
-  any doc with language like "read once per session", "read this AFTER
-  GROUNDING", "read this before any other agent-facing doc", or
-  "Overrides ... on conflict" — that doc is part of the contract, not optional
-  context. Read it now, before tier 2. These pointers are load-bearing:
-  CLAUDE.md is short by design, and the pointers are how a project hands you
-  its response-format, autonomy, and agent-behavior overrides. Skipping the
-  pointer is the documented failure mode — agents read CLAUDE.md, see the
-  pointer, treat CLAUDE.md as terminal, and produce output that the project's
-  agent guide explicitly forbids (verbose tables, trailing summaries, buffets,
-  speculation as assertion). Search CLAUDE.md (and GROUNDING.md) for the
-  phrases above; chase every hit.
+- **Follow CLAUDE.md's "read once per session" pointers** — language like
+  "read once per session", "read this AFTER GROUNDING", "Overrides ... on
+  conflict". Chase every hit before tier 2. Skipping them is a known failure
+  mode (agents treat CLAUDE.md as terminal and ignore project behavior rules).
 
 These reads are the contract. Everything else is journey/state.
 
@@ -145,47 +145,28 @@ skill does not know which UUIDs matter.
 
 ### 7. Project-specific extension — if `.claude/rehydrate-extra.md` exists
 
-Read and follow it verbatim. This is the project's hook for extending
-rehydration with steps the generic skill cannot know about. **Extensions
-may include bounded writes** (discipline-gate audit records, memory
-digest writebacks, register_session calls, etc.) — these are
-session-bookkeeping, not project state changes, and the "read-only"
-contract in the skill's intro explicitly carves them out. Examples:
+Read and follow it verbatim (format below). Bounded writes in the extension
+are session-bookkeeping — honor them; do not skip as "read-only" (see intro).
+Surface failures in the report; a broken extension means project drift.
 
-- Fetch specific governing Qdrant memories by UUID
-- Run a bench-state probe (`bash bench/bench_state.sh --brief`)
-- Verify a deployed binary md5 matches the documented binary
-- Read project-specific agent templates (e.g. `docs/agent-templates/pre-test-checklist.md`)
-- Apply a "first action of session is always X" gate that writes a
-  `SESSION-START-AUDIT` record (or equivalent) to the artifact DB
-- Write a memory-digest payload back to the audit record after the
-  agent fetches recent Qdrant memories
+### 8. Session janitor (MCP only; skip on `--quick` / `--no-mcp` / `--no-hygiene`)
 
-**Honor the extension's writes as written.** Skipping an extension step
-because "the skill is read-only" misreads the contract — the read-only
-rule applies to project state (code, plans, docs, notebooks), not to
-session-bookkeeping the extension explicitly authorizes. If you defer an
-extension write, flag the conflict explicitly in the report rather than
-silently choosing the skill's intro language over the extension.
+Bounded memory auto-heal: remove gunk from the *active surface* so this session
+is not steered by stale claims. Full tiers, examples, and boundary vs
+`/memory-sleep` → **`references/session-janitor.md`** (read it before acting).
 
-If the extension file references commands or scripts that fail, surface
-the failure in the report — do not silently swallow it. A broken
-extension is a signal the project state has drifted.
+**Must follow (summary):**
 
-### 8. Hygiene check — light, inline
-
-Compare what came back from MCP rehydrate against what GROUNDING.md says.
-Specific cheap checks:
-
-- Do governing memories cited in GROUNDING.md / CLAUDE.md actually return from
-  Qdrant? (search by hint, not UUID)
-- Does the active phase per pipeline match the active phase per
-  `artifacts/plans/current.md`?
-- Does PROGRESS.md (if present) cite a firmware version / state that
-  contradicts the latest notebook entry?
-
-Report inconsistencies as flags. **Do not auto-fix.** That is `/hygiene-check`'s
-job, run separately when the agent is ready to act on findings.
+- **Quota:** ≤5 writes (`supersede` / `update` / `confirm` / tag) or ~60s; never
+  unbounded; never `delete`
+- **Sources:** hygiene block top findings → semantic audit vs GROUNDING /
+  PROGRESS / pipeline / git → cheap structural checks
+- **Auto-heal:** broken supersede links; clear stale-vs-pipeline state;
+  tag import noise `gunk,exclude-from-default`; `confirm` verified truths
+- **Ask/stop:** patent/protected/evolution; true contradictions; cluster
+  consolidate; any delete
+- **Over quota:** highest-confidence first; list deferred; optional hygiene
+  subagent with same quota if findings > ~10
 
 ### 9. Report
 
@@ -207,7 +188,7 @@ One concise summary, scannable. Template:
 
 **Governing memories:** <2-4 search hints surfaced from rehydrate>
 
-**Hygiene flags:** <list, or "none">
+**Hygiene:** N fixed (brief what), M deferred, K need Matt — or "skipped (--no-hygiene|--quick|--no-mcp)" or "none"
 
 **Suggested first action:** <e.g. "read artifacts/plans/current.md exit gate
 before proposing work" or "run baseline bench reproduction per CLAUDE.md
@@ -223,7 +204,7 @@ are on-demand.
 User: /rehydrate
 ```
 Detect project, read tier 1+2, query artifact DB, MCP rehydrate with topic =
-project slug, run extension if present, report.
+project slug, run extension if present, session janitor (≤5 auto-heals), report.
 
 ```
 User: /rehydrate phase D firmware
@@ -233,13 +214,19 @@ Same, but `topic = "phase D firmware"` for memory + DB search focus.
 ```
 User: /rehydrate --quick
 ```
-GROUNDING + CLAUDE + last notebook entry only. No MCP, no DB, no pipeline.
-Use when you just need the contract and recent context.
+GROUNDING + CLAUDE + last notebook entry only. No MCP, no DB, no pipeline,
+no janitor. Use when you just need the contract and recent context.
 
 ```
 User: /rehydrate --no-mcp
 ```
-All local reads, skip gateway calls. Use offline.
+All local reads, skip gateway calls and janitor. Use offline.
+
+```
+User: /rehydrate --no-hygiene
+```
+Full orient including MCP, but skip Step 8 memory auto-heals. Use when you
+must not write to Qdrant this turn.
 
 ```
 [GROUNDING.md missing]
@@ -249,47 +236,30 @@ Run `/project-organize` to scaffold, then re-run `/rehydrate`."
 
 ## Non-goals
 
-The skill does NOT:
+Does **not**: scaffold (`/project-organize`); full onboard (`/meta-join`);
+reviews; `/memory-sleep` or hard delete; change project state (code/docs/
+plans/notebooks); full notebook read; unbounded memory cleanup.
 
-- Scaffold project structure (use `/project-organize`)
-- Run a full-onboard interview (use `/meta-join`)
-- Run reviews (use `/meta-review` family)
-- Auto-fix hygiene flags (use `/hygiene-check`)
-- Create notebook entries, modify plans, or change project state (code, docs, notebooks, plans)
-- Read the full `ENGINEERING-NOTEBOOK.md` — bounded to last 2-3 entries
-
-What the skill DOES allow (these are NOT in the "no writes" non-goal):
-
-- The MCP calls in Step 6, including `coordination_call > register_session` which writes coordination state
-- Whatever bounded writes a project's `.claude/rehydrate-extra.md` authorizes (e.g. discipline-gate audit records, memory-digest writebacks). These are session-bookkeeping, not project state changes — see Step 7.
-
-If you find yourself wanting to skip an extension write citing "the skill is read-only," re-read the intro. The read-only boundary is project state, not session metadata.
+**Does allow:** Step 6 MCP including `register_session`; extension bookkeeping
+writes; Step 8 janitor (≤5 supersede/update/confirm/tag). Skip janitor only via
+`--no-hygiene` / `--quick` / `--no-mcp`. Skipping bookkeeping or janitor as
+"read-only" misreads the intro.
 
 ## Project-specific extension format
 
-Projects extend rehydration by writing `<project-root>/.claude/rehydrate-extra.md`.
-The file is plain instructions for an agent. Keep it under 100 lines. Example
-shape:
+`<project-root>/.claude/rehydrate-extra.md` — plain agent instructions, <100
+lines. Execute steps; report failures. Example shape:
 
 ```markdown
 # rehydrate-extra — <project>
-
-After the generic /rehydrate steps, do these:
-
-1. Read PROGRESS.md head for governing memory UUIDs. Fetch each via
-   `memory_call > get` (don't rely on rehydrate previews).
-2. Run `bash bench/watcher_status.sh` and `bash bench/bench_state.sh`.
-   Verify watcher verdict is HEALTHY or ARMED.
-3. Read `docs/agent-templates/pre-test-checklist.md` before any bench action.
-4. Verify deployed CM4 binary md5 matches the binary documented in
-   PROGRESS.md head.
-
-If any check fails, surface in the rehydration report and do NOT proceed
-with bench work until resolved.
+1. Fetch governing memories by UUID from PROGRESS.md head (`memory_call > get`)
+2. Run project probes (e.g. bench_state.sh); fail the report if unhealthy
+3. Read any "first action" checklists named by the project
 ```
 
-The generic skill reads and follows this file but does not interpret its
-content beyond "execute the steps and report failures."
+## References (on-demand)
+
+- `references/session-janitor.md` — Step 8 tiers, quota, boundary vs sleep
 
 ---
 

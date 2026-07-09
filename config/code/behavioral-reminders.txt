@@ -71,11 +71,11 @@ type=redesign|decision|finding|experiment|audit|fix
 ### On Session Start
 1. Read GROUNDING.md at git root (if grounding=false in hook output, run /project-organize first)
 2. gateway_call > rehydrate {topic, project_slug} — pulls relevant memories, context, recent activity
-3. VITAL IMPOTANCE - you will want to do the task right away but please FIX THE inconsistencies.
-  - Fix memory inconsistencies NOW even if it delays things a minute.
-   - compare rehydrated memories/graph against GROUNDING.md
-   - report to user: "Memory check: {N issues found }"
-   - fix all issues after reporting
+3. SESSION JANITOR (VITAL — you will want the user's task first; do this NOW even if it delays a minute)
+   - Compare rehydrate results (+ hygiene block if present) against GROUNDING.md / PROGRESS.md / pipeline / git
+   - Apply auto-heals within quota (see Session Janitor below). Supersede/update/confirm/tag only. Never delete.
+   - Report: "Hygiene: {N fixed, M deferred, K need you}" then "Memory check: {N issues found}" if any remain
+   - Prefer /rehydrate (janitor on by default) when orienting; skip only with --no-hygiene / --quick / --no-mcp
 4. interagent_call > inbox {from: machine_id} — check for assignments from other machines
 5. coordination_call > register_session {session_id, cwd, project, hostname}
 6. Continue with user's task
@@ -140,19 +140,56 @@ Route all memory writes through memory_call > store (Qdrant). A PreToolUse hook 
 ### Before Neo4j/Qdrant operations
 Search "[tool] gotcha" in memory first. Known issues exist for both stores.
 
+## SESSION JANITOR (every cold start — 2026-07-09)
+
+Goal: every capable agent removes gunk from the *active surface* before user work. Not a full /memory-sleep pass.
+
+### Quota
+- Max 5 write actions (supersede / update / confirm / tag via update)
+- Or stop after ~60s of hygiene work
+- One-line report then continue the user's task
+- If findings > ~10, spawn hygiene subagent with the same quota+tiers (do not unbounded-clean)
+
+### Skip when
+- Hygiene block severity=none and no semantic issues, OR
+- Project already cleaned this session
+
+### Auto-heal WITHOUT asking
+| Action | Tooling |
+|--------|---------|
+| Broken supersede link / superseded_visible | memory_call > supersede |
+| State memory contradicted by PROGRESS / pipeline / git (clear stale) | update or supersede → current truth |
+| Import / low-density noise (openai-import, claude-import, empty shells) | update tags: add `gunk,exclude-from-default` (content unchanged if possible) |
+| Still-accurate governing memory | memory_call > confirm |
+| Additive cross-links / case-normalized graph node merges | graph_call as needed |
+
+### Always ask / stop
+- patent, protected, evolution-tagged subjects
+- Two current sources disagree and both look intentional (true contradiction)
+- memory_call > delete (never auto — prefer supersede/tag; bulk legacy → /memory-sleep)
+- Large 0.85 cluster consolidate (defer to /memory-sleep or propose)
+
+### Remove means
+Out of default steering: supersede + tag. Not hard-delete. Aligns with /memory-sleep supersede-only.
+
+### Boundary
+- Session janitor: ≤5 actions, project-scoped, every cold start
+- /memory-sleep: bulk/legacy/dream, dry-run default, Matt-approved execute
+- Do not run a full sleep pass at session start
+
 ## HYGIENE AGENT
 
-### What the spawned subagent does (triggered by step 3 when issues found)
-Scope: project memories only, not global.
+### What the spawned subagent does (when janitor findings > ~10 or inline would derail)
+Scope: project memories only, not global. Same auto-heal tiers + quota as Session Janitor.
 - memory_call > search by project tags/category
 - memory_call > search filtered to last 7 days (recency pass)
-- Compare claims against current state (GROUNDING.md, pipeline, artifact DB, code)
-- Consolidate/update memories that contradict current state. Preserve chain.
-- Audit never-retrieved memories (retrieval_count=0, age >30d). Evaluate relevance.
+- Compare claims against current state (GROUNDING.md, PROGRESS.md, pipeline, artifact DB, code)
+- Auto-heal within quota; preserve supersede chain
+- Tag never-retrieved import/low-density gunk; do not mass-delete
 - Check engineering notebook for TOC block; flag if missing/stale
 - Update Neo4j nodes if structural relationships changed
-- Write authority: consolidate and update within project scope only. Deletion and storage of user-task findings are out of scope.
-- Report: {N updated, N consolidated, N still clean}
+- Write authority: supersede/update/confirm/tag within project scope. Deletion and user-task findings out of scope.
+- Report: {N fixed, M deferred, K need you}
 
 ## AS-YOU-GO MEMORY HYGIENE (added 2026-07-08 — session-start hygiene alone was not producing clean-as-you-go)
 
