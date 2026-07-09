@@ -920,3 +920,42 @@ episodics, batch-001), Matt reads the repercussions-first report, calibrate.
 Interagent follow-up task sent to dell-xps tagged memory-system.
 
 **Qdrant:** search "memory-sleep skill built sleep cycle step 2"
+
+## Entry 19 -- Session Janitor: Cold-Start Memory Auto-Heal (2026-07-09)
+
+date=2026-07-09
+type=implementation
+status=shipped
+
+**What:** Session janitor protocol so every capable cold-start agent removes
+gunk from the *active memory surface* before user work — without a full
+`/memory-sleep` pass.
+
+**Problem:** Targeted memory search was high-signal; broad rehydrate dumped
+hygiene noise and left stale high-retrieval memories steering agents. Report-only
+hygiene + "fix later" failed for months (Entry 10 compliance pattern; Jul 8
+as-you-go rule helped mid-session only).
+
+**Changes:**
+
+| What | Before → After | Detail |
+|------|----------------|--------|
+| behavioral-reminders.txt + .bp.txt | medium = wait for approval on most findings | SESSION JANITOR: auto-heal tiers + quota 5; stale-vs-pipeline is fix-not-ask |
+| `/rehydrate` Step 8 | "Do not auto-fix; use hygiene-check" | Default janitor on; `--no-hygiene` opt-out; overflow in `references/session-janitor.md` |
+| session-prewarm.sh | facts only | `action=session_janitor` + one-line reminder (local, no MCP) |
+| `/memory-sleep` | no cold-start boundary | Boundary table: janitor vs sleep |
+
+**Auto-heal (no ask):** broken supersede links; clear stale state vs PROGRESS/
+pipeline/git; tag import noise `gunk,exclude-from-default`; confirm verified
+truths. **Ask/stop:** patent/protected/evolution; true contradictions; delete;
+large cluster consolidate → sleep.
+
+**Remove means** supersede + tag out of default steering — not hard-delete.
+Aligns with sleep supersede-only.
+
+**Commits:** `80ff47c` (janitor core), polish follows this entry.
+
+**Not done (next):** hygiene-check dual-mode (`--fix`); gateway default-exclude
+for `gunk`/imports so tags change retrieval, not just labels.
+
+**Qdrant:** search "session janitor rehydrate auto-heal quota 5"

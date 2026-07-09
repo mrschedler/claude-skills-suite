@@ -16,6 +16,20 @@ Design authority: `C:\dev\memory-system\artifacts\plans\sleep-cycle-architecture
 — its **§Interview decisions** section governs wherever it conflicts with the
 earlier cadence/vehicle sections or with the Sprint 15 pipeline description.
 
+## Boundary vs session janitor
+
+| | Session janitor | This skill (`/memory-sleep`) |
+|--|-----------------|------------------------------|
+| When | Every cold start after rehydrate | Manual supervised pass only |
+| Trigger | behavioral-reminders + `/rehydrate` Step 8 (default on) | Explicit `/memory-sleep …` |
+| Quota | ≤5 writes | ≤50 after approved dry-run |
+| Dry-run | No | Default; `--execute` needs Matt-approved report |
+| Scope | Project-scoped active-surface gunk | Bulk / legacy / dream / triage |
+| Delete | Never | Never (supersede-only) |
+
+Do **not** run a full sleep pass at session start. Cold-start cleanup is the
+session janitor; this skill is for deliberate bulk work after Matt asks for it.
+
 ## Pass Types
 
 | Pass | Stages | Scope | Judge tier |

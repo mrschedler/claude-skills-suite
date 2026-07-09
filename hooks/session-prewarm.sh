@@ -28,4 +28,9 @@ if [[ -n "$GIT_ROOT" ]]; then
   fi
 fi
 
+# Session janitor nudge (local-only; agent acts via MCP). Full tiers live in
+# behavioral-reminders SESSION JANITOR + skills/rehydrate Step 8.
+echo "action=session_janitor"
+echo "reminder=After rehydrate: apply memory auto-heals (quota 5). Supersede/update/confirm/tag gunk only. Never delete without Matt. Opt out: /rehydrate --no-hygiene."
+
 exit 0
