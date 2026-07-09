@@ -72,7 +72,6 @@ This project solves the cold-start problem at the **skill layer**. Skills are re
 | 300-line skill limit with overflow to references/ | No limit | Context window discipline; shorter skills are better skills |
 | /project-organize replaces scaffold + clean-project | Keep both separate | One skill for all project organization; simpler mental model |
 | Engineering notebooks as journey docs | Inline comments in GROUNDING.md | GROUNDING.md captures current state; notebook captures how we got here |
-| Session janitor on cold start (quota 5, supersede/tag only) | Report-only hygiene; full /memory-sleep every session | Agents skip report-only cleanup; sleep is bulk/supervised; janitor removes active-surface gunk without delete (Entry 19, 2026-07-09) |
 
 ## Tech Stack
 

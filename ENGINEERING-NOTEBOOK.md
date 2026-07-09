@@ -962,4 +962,12 @@ Aligns with sleep supersede-only.
 for `gunk`/imports so tags change retrieval, not just labels. Tags alone do
 not demote noise until search honors them.
 
+**Doc placement correction (same day):** A Key Decision row was briefly added to
+GROUNDING.md and **reverted**. Session janitor is not a rare product-identity
+decision — it is operating protocol + journey. Homes: this Entry, PROGRESS.md
+(NOW), Qdrant d7a8057c. GROUNDING stays relatively static per Entry 17 /
+`/project-organize` role discipline. Skills that encode the architecture:
+`/project-organize` (seven-artifact layout), `/project-context` (deep tech
+architecture when needed).
+
 **Qdrant:** search "session janitor rehydrate auto-heal quota 5"
