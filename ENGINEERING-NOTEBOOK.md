@@ -953,9 +953,13 @@ large cluster consolidate → sleep.
 **Remove means** supersede + tag out of default steering — not hard-delete.
 Aligns with sleep supersede-only.
 
-**Commits:** `80ff47c` (janitor core), polish follows this entry.
+**Commits (all on origin/main):**
+- `80ff47c` — janitor core (reminders + rehydrate Step 8 + session-janitor.md)
+- `01f97e7` — memory-sleep skill + interagent push (same DR push train)
+- `04cb7d6` — prewarm nudge + sleep boundary table + this entry finalized
 
 **Not done (next):** hygiene-check dual-mode (`--fix`); gateway default-exclude
-for `gunk`/imports so tags change retrieval, not just labels.
+for `gunk`/imports so tags change retrieval, not just labels. Tags alone do
+not demote noise until search honors them.
 
 **Qdrant:** search "session janitor rehydrate auto-heal quota 5"
