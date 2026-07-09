@@ -1,4 +1,5 @@
 {
+  "cleanupPeriodDays": 365,
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
   },
@@ -14,7 +15,6 @@
       "Agent",
       "WebFetch",
       "WebSearch",
-
       "Bash(bash bench/bench_state.sh*)",
       "Bash(bash bench/run_modbus_experiment.sh*)",
       "Bash(bash bench/run_modbus_experiment_wired.sh*)",
@@ -29,7 +29,6 @@
       "Bash(python bench/parse_modbus_csv.py*)",
       "Bash(python bench/parse_relay_trace.py*)",
       "Bash(python bench/compile_session_summary.py*)",
-
       "Bash(powershell.exe -NoProfile*)",
       "PowerShell(Get-PnpDevice *)",
       "PowerShell(Get-CimInstance *)",
@@ -39,7 +38,6 @@
       "PowerShell(Get-Item *)",
       "PowerShell(Test-Path *)",
       "PowerShell($targets *)",
-
       "Bash(python client/moxa_loopback_test.py*)",
       "Bash(python client/modbus_direct_test.py*)",
       "Bash(python client/modbus_ftdi_test.py*)",
@@ -49,6 +47,7 @@
       "Bash(python client/test_g3_broker.py*)"
     ]
   },
+  "model": "claude-fable-5[1m]",
   "hooks": {
     "SessionStart": [
       {
@@ -60,6 +59,16 @@
           {
             "type": "command",
             "command": "bash /c/dev/claude-skills-suite/hooks/session-prewarm.sh"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /c/dev/claude-skills-suite/hooks/interagent-inbox-nudge.sh"
           }
         ]
       }
@@ -151,9 +160,11 @@
       }
     ]
   },
-  "cleanupPeriodDays": 365,
-  "effortLevel": "xhigh",
+  "effortLevel": "high",
+  "tui": "fullscreen",
   "skipDangerousModePermissionPrompt": true,
+  "skipWorkflowUsageWarning": true,
+  "theme": "light",
   "mcpServers": {
     "playwright": {
       "command": "npx",
@@ -164,6 +175,5 @@
   },
   "skills": [
     "C:\\dev\\claude-skills-suite\\skills"
-  ],
-  "tui": "fullscreen"
+  ]
 }

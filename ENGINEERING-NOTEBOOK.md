@@ -876,3 +876,47 @@ migrated: QL-Support-Portal (PROJECT-STATUS.md -> PROGRESS.md, dynamic state mov
 out of GROUNDING.md).
 
 **Qdrant:** search "PROGRESS.md restored root file standard seventh artifact"
+
+## Entry 18 -- /memory-sleep Skill Built (Sleep Cycle Step 2) (2026-07-08)
+
+date=2026-07-08
+type=implementation
+status=shipped
+
+**What:** Built `skills/memory-sleep/` — the manual supervised sleep/dream
+consolidation pass over the Qdrant memory store. Sleep Cycle build Step 2 of 4
+(Step 1 = Sprint 14 gateway prerequisites, shipped earlier today, commit
+9f0453f on unraid-mcp-gateway). Spec source: interagent assignment #180 +
+`C:\dev\memory-system\artifacts\plans\sleep-cycle-architecture-2026-07-08.md`
+(§Interview decisions governs).
+
+**Shape:** SKILL.md (207 lines) + 4 references (worker-prompt, judge-prompt,
+report-contract, workflow-skeleton). Pass types light/deep/dream/triage.
+Pipeline: Stage 0 mechanical manifest (protected/patent excluded upstream of
+any LLM) → ~25-memory batches → read-only worker verdicts
+(KEEP/UPDATE/PROMOTE/CONSOLIDATE/ARCHIVE, ground-truth verification mandatory
+via hybrid keyword search/git/PROGRESS.md/pipeline) → adversarial judge gate on
+destructive verdicts only (TOMBSTONE RULE: existence/closure facts must live in
+a keystone before archive) → serial executor (supersede-only, ≤50 actions,
+audit row before each write, fail-closed on first bad write).
+
+**Load-bearing choices:**
+- DRY-RUN default; `--execute <report-label>` valid only against an approved
+  dryrun-report artifact-DB record for the same manifest.
+- Report contract: repercussions-first ~20-word bullets ("lose: X; keep: Y"),
+  details below as reference only — Matt skims, approves on the first screen.
+- Model tiers expressed as roles (worker tier / judge tier), not hardcoded
+  names — honors the no-hardcoded-models guardrail while keeping the design
+  doc's Opus-worker/Fable-judge economics as stated defaults.
+- Judge fails closed: a dead judge agent = all its destructive verdicts REJECTED.
+- MCP-required is an explicit, documented exception to the MCP-optional rule
+  (the memory store IS the work surface; there is no degraded mode).
+- Triage pass consumes the pre-built Stage-0 manifest (101 batches,
+  memory-system artifact DB, built same day under interagent #182) with a
+  re-verify step since the manifest is a point-in-time snapshot.
+
+**Next:** Step 3 — first supervised dry-run on ONE batch (~25 claude-import
+episodics, batch-001), Matt reads the repercussions-first report, calibrate.
+Interagent follow-up task sent to dell-xps tagged memory-system.
+
+**Qdrant:** search "memory-sleep skill built sleep cycle step 2"
