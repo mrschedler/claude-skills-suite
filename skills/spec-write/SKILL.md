@@ -84,7 +84,15 @@ cited number has a source; body and BOM agree on every part.
 ### Phase 4: Designer communications (when drafting emails)
 
 Board designers work in drawings, not prose. Many have never worked from an
-all-text spec. Communicate in their native format:
+all-text spec. **House email format (settled 2026-07-24): a short plain-text
+answer to the exact question, plus ONE simple diagram image.** The text
+carries the answer; the diagram carries the connections; neither does the
+other's job. Diagram options by case: a redline of the designer's own sheet
+(for corrections), a cropped reference schematic (when one exists), or a
+minimal ASCII circuit drawing rendered/screen-grabbed (for our own circuits) -
+nets, pins, and values only, zero prose inside the drawing frame.
+
+Format rules:
 
 - **Lead with a picture when one exists.** Attach the reference schematic
   figure (crop it from the datasheet PDF), a redlined markup of their own
