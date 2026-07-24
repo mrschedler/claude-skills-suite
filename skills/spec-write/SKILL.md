@@ -83,10 +83,23 @@ cited number has a source; body and BOM agree on every part.
 
 ### Phase 4: Designer communications (when drafting emails)
 
+Board designers work in drawings, not prose. Many have never worked from an
+all-text spec. Communicate in their native format:
+
+- **Lead with a picture when one exists.** Attach the reference schematic
+  figure (crop it from the datasheet PDF), a redlined markup of their own
+  drawing, or a connection table. Prose describes a circuit only when no
+  drawing of it exists anywhere.
+- **One connection per sentence, plain words.** "The switch enable pin
+  connects to CM4 pin 75." Never compressed notation ("EN = pin 75 w/ 12K
+  pull-up") — shorthand that is normal in-repo is noise to a whiteboard
+  thinker.
 - Spell out symbols: "Section 6," not "§6."
 - Bullets; the issue first; minimal filler.
 - Each bullet carries a spec section + page pointer.
 - State what to change — never describe what the recipient's draft shows.
+- One line of intent is allowed when it prevents a wrong simplification
+  ("the switch exists so the CM4 can power-cycle a hung card").
 
 ### Phase 5: Persist
 
