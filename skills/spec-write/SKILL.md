@@ -39,6 +39,14 @@ says, so it must say exactly what to draw.
 
 ### Phase 2: Apply the rules
 
+**Section shape: the triplet.** Every subsystem section is (1) a figure in
+schematic idiom - no sentences on the canvas, (2) a connection table, (3)
+minimal text: part number, population state, one line of intent at most.
+Prose describing circuit shape is a compression format the reader must
+decompress, and decompression is where their errors happen - the figure IS
+the information. New specs start this way; existing specs adopt it at their
+next major revision, not mid-engagement.
+
 Write (or rewrite) to these nine rules:
 
 1. **Audience.** Every sentence is for the board designer who draws the
