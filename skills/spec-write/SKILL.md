@@ -90,6 +90,16 @@ all-text spec. Communicate in their native format:
   figure (crop it from the datasheet PDF), a redlined markup of their own
   drawing, or a connection table. Prose describes a circuit only when no
   drawing of it exists anywhere.
+- **A drawing with paragraphs on it is still text.** Box-and-arrow views
+  annotated with explanatory prose are study aids for text-thinkers - keep
+  them internal. Designer-facing drawings carry only what a schematic
+  carries: symbols, nets, reference designators, pin numbers, values. If a
+  fact needs a sentence to prevent misreading, the sentence belongs in the
+  spec and the drawing is not done.
+- **Deltas go as redlines on the designer's own sheet** - circle, cross out,
+  point to the fix in their idiom - not as a fresh diagram of yours.
+- **Ask the designer for a sample input package** from their past work and
+  produce that format, instead of guessing.
 - **One connection per sentence, plain words.** "The switch enable pin
   connects to CM4 pin 75." Never compressed notation ("EN = pin 75 w/ 12K
   pull-up") — shorthand that is normal in-repo is noise to a whiteboard
