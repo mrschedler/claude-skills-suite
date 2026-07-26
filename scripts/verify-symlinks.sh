@@ -88,8 +88,20 @@ for entry in "${LINKS[@]}"; do
     repaired=$((repaired+1))
     add_detail "${name}:repaired"
   else
-    failed=$((failed+1))
-    add_detail "${name}:repair-failed"
+    # mklink needs admin or Developer Mode for file symlinks. Never leave the
+    # config missing: fall back to a plain copy of the canonical target so the
+    # app keeps working. The copy is refreshed on every run (a regular file is
+    # re-attempted as a symlink each time), so drift is bounded to one session.
+    if [[ "$type" == "F" ]] && cp "$target" "$link" 2>/dev/null; then
+      repaired=$((repaired+1))
+      add_detail "${name}:copy-fallback"
+    elif [[ "$type" == "D" ]] && cp -r "$target" "$link" 2>/dev/null; then
+      repaired=$((repaired+1))
+      add_detail "${name}:copy-fallback"
+    else
+      failed=$((failed+1))
+      add_detail "${name}:repair-failed"
+    fi
   fi
 done
 
