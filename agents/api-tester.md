@@ -1,6 +1,6 @@
 ---
 name: api-tester
-description: API testing specialist. Use after building or modifying any API endpoint (REST, GraphQL, WebSocket). Fires real requests, validates responses against schemas, tests edge cases (auth failures, rate limits, malformed input, large payloads), and produces a test report with pass/fail results.
+description: API testing specialist — fires real requests and reports pass/fail across happy-path, auth, validation, and edge cases. Use after building or modifying any API endpoint.
 model: sonnet
 ---
 

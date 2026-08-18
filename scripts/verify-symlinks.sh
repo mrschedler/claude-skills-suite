@@ -26,6 +26,7 @@ LINKS=(
   "$CLAUDE_HOME/CLAUDE.md|$SKILLS_SUITE/config/code/CLAUDE.md|F"
   "$CLAUDE_HOME/behavioral-reminders.txt|$SKILLS_SUITE/config/code/behavioral-reminders.txt|F"
   "$CLAUDE_HOME/skills|$SKILLS_SUITE/skills|D"
+  "$CLAUDE_HOME/agents|$SKILLS_SUITE/agents|D"
   "$CLAUDE_APPDATA/claude_desktop_config.json|$SKILLS_SUITE/config/desktop/claude_desktop_config.json|F"
 )
 
@@ -77,9 +78,11 @@ for entry in "${LINKS[@]}"; do
     rm -rf "$link" 2>/dev/null
   fi
 
-  # Recreate the link. mklink /D for directories, no flag for files.
+  # Recreate the link. mklink /J (junction) for directories — junctions need no
+  # elevation/Developer Mode, unlike /D symlinks, and Git Bash test -L detects
+  # them the same. No flag for files.
   if [[ "$type" == "D" ]]; then
-    MSYS_NO_PATHCONV=1 cmd /c mklink /D "$link_win" "$target_win" >/dev/null 2>&1
+    MSYS_NO_PATHCONV=1 cmd /c mklink /J "$link_win" "$target_win" >/dev/null 2>&1
   else
     MSYS_NO_PATHCONV=1 cmd /c mklink "$link_win" "$target_win" >/dev/null 2>&1
   fi

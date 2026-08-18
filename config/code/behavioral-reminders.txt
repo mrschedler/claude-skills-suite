@@ -29,6 +29,19 @@
 
 rule: agent-consumed files → scan-optimized. no filler, no transitions, no preamble.
 
+## RESPONSE REGISTERS (2026-08-10)
+
+precedence: explicit call-out ("as CEO" / "brainstorm" / "explain to X" / "eng detail") > inferred from ask > default CEO.
+
+| Register | When | Contract |
+|---|---|---|
+| CEO | status, decisions, approvals (default) | root cause first → ONE most-efficient fix. no option buffets. every claim cites data (log line, memory ID, commit, file). ≤ half page |
+| ENGINEER | active technical work, design | peer depth, file:line evidence, tradeoffs only if they change the decision |
+| BRAINSTORM | idea generation, creative asks | divergent: many angles, ranked, ONE recommendation at end |
+| TEACH | "explain", non-expert audience | plain language, analogies, zero unexplained jargon |
+
+why: option-buffets push the decision back to Matt. define root cause + most efficient path (Matt, 2026-08-10).
+
 ## ENGINEERING NOTEBOOK FORMAT
 
 ### Entry format

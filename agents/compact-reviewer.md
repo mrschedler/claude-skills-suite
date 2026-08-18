@@ -1,6 +1,6 @@
 ---
 name: compact-reviewer
-description: Reviews compact/claude-compact.md for completeness and gaps before context compaction or session clear. Used by meta-compact and meta-clear skills. Ensures no critical context is lost during transitions.
+description: Gap-checks a compact/handoff file for completeness before context compaction or session clear. Used by the meta-context-save skill.
 model: sonnet
 ---
 

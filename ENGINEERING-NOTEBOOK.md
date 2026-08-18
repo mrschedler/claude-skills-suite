@@ -971,3 +971,61 @@ decision — it is operating protocol + journey. Homes: this Entry, PROGRESS.md
 architecture when needed).
 
 **Qdrant:** search "session janitor rehydrate auto-heal quota 5"
+
+## Entry 20 -- Agent Roles Mounted After 4.5 Months Orphaned + Response Registers (2026-08-10)
+
+date=2026-08-10 machine=skip type=fix+feature
+
+**Root cause found:** the 10 agent role definitions written 2026-03-23 in
+`agents/` were never deployed. Claude Code loads custom subagents only from
+`~/.claude/agents`, and that link was never created — the 2026-04-13 symlink
+consolidation enumerated 5 links and didn't know `agents/` existed (built 3
+weeks earlier, no memory recorded a deployment step). `symlinks_ok=5/5` was
+honest about the wrong question: the monitor can't flag a link it was never
+told about. Textbook instance of the tracking-gap pattern (Qdrant 8b653c36):
+built → intent memorized → deployment never closed.
+
+| Change | Detail |
+|---|---|
+| Mount | `C:\dev\.claude\agents` → `agents/` as a **junction** (mklink /J — no Dev Mode/elevation needed; Git Bash `test -L` detects junctions, verified empirically) |
+| verify-symlinks.sh | `agents` added to LINKS (now 6); directory repairs switched /D → /J, making dir repair Dev-Mode-independent on all machines |
+| Localization | backup-runner + db-admin + infra-debugger: "Trevor" → Matt, "Tower" → DeepThought; SSH via Bash `ssh deepthought` (never gateway ssh_call); log-analyst same |
+| Stale refs | compact-reviewer: meta-compact/meta-clear → meta-context-save, cnotes.md dropped; review-lens: features.md → GROUNDING.md/project-context.md |
+| New roles | implementer (Matt's 2026-07-08 delegate-code directive), investigator (no-fix rule from v26→v29 spiral), verifier (adversarial, patent-workflow pattern) |
+| README.md | roster table + shared Return Contract (STATUS/EVIDENCE/UNVERIFIED/NOTES/RECOMMENDATION); Workflow `agent(prompt,{schema})` enforces it mechanically |
+| Response registers | behavioral-reminders .txt + .bp.txt: CEO / ENGINEER / BRAINSTORM / TEACH registers for responses to Matt; explicit call-out > inferred > default CEO |
+
+**Why registers:** Matt 2026-08-10 — option-buffets push the decision back to
+him. CEO register = root cause first, ONE most-efficient fix, data-cited.
+
+**Decision:** skip stays OUT of Dev Mode — junctions cover directory links,
+copy-fallback covers file links, observed flatten rate on skip is zero since
+April. Inbox #186 downgraded to optional.
+
+**Verify:** `symlinks_ok=6/6` clean run; roles load in next fresh session
+(harness reads agents dir at startup — confirm roster appears in agent list).
+
+**Qdrant:** search "agent roles mounted junction 2026-08-10"
+
+## Entry 21 -- Agent Roles De-Trevored: Descriptions Trimmed, Facts Stripped (2026-08-10)
+
+date=2026-08-10 machine=skip type=refinement
+
+Matt flagged that the 10 original roles were copied from Trevor's setup, which
+over-designed elements. Audit verdict: bodies (conduct + report format) were
+right-sized; the over-design was (1) 3-4 sentence frontmatter descriptions —
+paid into EVERY session's context via the agent roster — and (2) volatile
+infrastructure facts baked into conduct files (container names, auth facts,
+dump commands — Trevor's containers, likely wrong for DeepThought, rot silently).
+
+| Change | Detail |
+|---|---|
+| All 13 descriptions | trimmed to ≤2 sentences (what + when-to-use only) |
+| db-admin | runbook tables stripped → "discover, don't assume" rule (live inspection + rehydrate/Qdrant) |
+| infra-debugger | hard-coded Common Issue Patterns list → pointer to Qdrant/GOTCHAS.md ("live memory is the pattern list") |
+| backup-runner | DELETED — manually re-implemented a job that already runs on cron (Mattermost backup notifications); restorable from git |
+
+Principle reaffirmed (agents/README.md): roles define conduct + return format;
+current facts come from GROUNDING/rehydrate/Qdrant. Roster now 12 roles + README.
+
+**Qdrant:** search "agent roles de-trevored descriptions trimmed"

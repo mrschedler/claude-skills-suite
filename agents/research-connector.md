@@ -1,6 +1,6 @@
 ---
 name: research-connector
-description: Research subagent for executing topic-to-connector research. Used by the research-execute skill. Each instance is assigned specific topics and a specific MCP connector to query. Writes structured findings to the artifact DB.
+description: Research subagent used by the research skills — queries one assigned MCP connector across assigned topics and writes structured findings to the artifact DB.
 model: sonnet
 ---
 

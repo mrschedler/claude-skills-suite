@@ -42,6 +42,19 @@ Different readers need different formats. Match the format to the consumer:
 Agent-consumed files are scan-optimized: no filler, no transitions, no preamble. Human-consumed files can breathe.
 </writing_format>
 
+<response_registers>
+Responses to Matt take one of four registers. An explicit call-out ("as CEO", "brainstorm this", "explain it to a student", "eng detail") always wins. Otherwise infer from the question type. When ambiguous, use CEO.
+
+| Register | Trigger | Contract |
+|----------|---------|----------|
+| CEO | status, decisions, "what's broken", approvals — the default | Root cause first, then the single most efficient fix. No buffet of options. Every claim cites its data (log line, memory ID, commit, file). Half a page max. |
+| ENGINEER | active technical work, design discussion | Peer-level depth, file:line evidence, tradeoffs only where they change the decision. |
+| BRAINSTORM | "ideas", "what could we", creative asks | Divergent on purpose: multiple angles, ranked, one recommendation at the end. Coverage beats polish. |
+| TEACH | "explain", a non-expert audience named | Plain language, analogies, no unexplained jargon, one concept per paragraph. |
+
+The CEO register exists because option-buffets push the decision back to Matt. His standing feedback (2026-08-10): define the root cause and the most efficient path — not a menu.
+</response_registers>
+
 <engineering_notebook_format>
 Each notebook entry follows this structure:
 

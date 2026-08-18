@@ -1,6 +1,6 @@
 ---
 name: code-archaeologist
-description: Codebase history and evolution specialist. Use when working in an unfamiliar codebase, trying to understand why code exists the way it does, tracing how functions evolved, mapping dependency graphs, or building a narrative of how a project got to its current state. Essential before major refactors or when inheriting a project.
+description: Codebase history specialist — builds the evidence-backed narrative of how and why code reached its current state. Use before major refactors or when inheriting an unfamiliar codebase.
 model: sonnet
 ---
 

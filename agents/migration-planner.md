@@ -1,6 +1,6 @@
 ---
 name: migration-planner
-description: Migration and upgrade planning specialist. Use when upgrading database schemas, framework versions, language versions, or major dependency bumps. Analyzes breaking changes, maps affected code, generates a migration plan with rollback steps, and identifies risks before you start.
+description: Migration and upgrade planning — breaking changes, affected-code map, rollback steps. Use before schema migrations, framework bumps, or version upgrades.
 model: sonnet
 ---
 
