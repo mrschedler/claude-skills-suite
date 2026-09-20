@@ -1,0 +1,45 @@
+# Template for ~/.grok/config.toml — NO SECRETS.
+# Copy missing sections into the machine-local file. Gateway headers stay only
+# in ~/.grok/config.toml (Cloudflare Access service token).
+
+[memory]
+enabled = false
+
+# Do not import ~/.claude/settings.json (or project .claude/settings.json)
+# hooks. Those commands use bare `bash` → WSL on this machine. Grok hooks
+# live in ~/.grok/hooks (junction to config/grok/hooks) and launch Git Bash
+# via git-bash.cmd. Skills/rules/agents Claude-compat can stay on.
+[compat.claude]
+hooks = false
+
+# Grok 1.0.5 does not honor [mcp] max_output_bytes in user config.toml
+# (inspect: unrecognized key). If rehydrate payloads truncate, set
+# GROK_MAX_MCP_OUTPUT_BYTES=80000 in the environment.
+
+[skills]
+# Hide Trevor-era / deprecated skills. Live skills still load via Claude compat
+# (~/.claude/skills → this repo skills/).
+ignore = [
+  "C:/dev/claude-skills-suite/skills/archive",
+  "C:/Users/matts/.claude/skills/archive",
+]
+
+# Gateway (fill headers from ~/.claude.json / existing ~/.grok/config.toml):
+#
+# [mcp_servers.gateway]
+# url = "https://mcp.epiphanyco.com/mcp"
+# enabled = true
+# startup_timeout_sec = 60
+#
+# [mcp_servers.gateway.headers]
+# CF-Access-Client-Id = "${CF_ACCESS_CLIENT_ID}"
+# CF-Access-Client-Secret = "${CF_ACCESS_CLIENT_SECRET}"
+
+# Optional — Claude Code also has this in settings.json. Enable if you need
+# /browser-review from Grok:
+#
+# [mcp_servers.playwright]
+# command = "npx"
+# args = ["@playwright/mcp@latest"]
+# enabled = true
+# startup_timeout_sec = 60

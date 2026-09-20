@@ -1,0 +1,91 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:/dev/claude-skills-suite/config/grok/hooks/git-bash.cmd /c/dev/claude-skills-suite/hooks/session-prewarm.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:/dev/claude-skills-suite/config/grok/hooks/git-bash.cmd /c/dev/claude-skills-suite/hooks/interagent-inbox-nudge.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "run_terminal_command|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:/dev/claude-skills-suite/config/grok/hooks/git-bash.cmd /c/dev/claude-skills-suite/hooks/search-before-act.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "gateway__memory_call|gateway__graph_call",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:/dev/claude-skills-suite/config/grok/hooks/git-bash.cmd /c/dev/claude-skills-suite/hooks/search-before-memory.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "write|search_replace|Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:/dev/claude-skills-suite/config/grok/hooks/git-bash.cmd /c/dev/claude-skills-suite/hooks/block-auto-memory.sh",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "search_replace|Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:/dev/claude-skills-suite/config/grok/hooks/git-bash.cmd /c/dev/claude-skills-suite/hooks/post-edit-complexity.sh",
+            "timeout": 15
+          }
+        ]
+      },
+      {
+        "matcher": "run_terminal_command|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:/dev/claude-skills-suite/config/grok/hooks/git-bash.cmd /c/dev/claude-skills-suite/hooks/post-commit-memory-sync.sh",
+            "timeout": 15
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:/dev/claude-skills-suite/config/grok/hooks/git-bash.cmd /c/dev/claude-skills-suite/hooks/session-end-summary.sh",
+            "timeout": 20
+          }
+        ]
+      }
+    ]
+  }
+}
