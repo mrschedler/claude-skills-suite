@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# verify-symlinks.sh -- Detect and repair Claude config symlinks that
-# Claude Desktop/Code updates have overwritten with regular files.
+# verify-symlinks.sh -- Detect and repair Claude/Grok config symlinks that
+# app updates have overwritten with regular files.
 #
 # Root cause: the Claude apps use atomic writes (write-new-file + rename)
 # which replaces the symlink with whatever they wrote. This silently breaks
@@ -19,6 +19,7 @@
 SKILLS_SUITE="${SKILLS_SUITE_DIR:-/c/dev/claude-skills-suite}"
 CLAUDE_HOME="${CLAUDE_HOME:-/c/Users/matts/.claude}"
 CLAUDE_APPDATA="${CLAUDE_APPDATA:-/c/Users/matts/AppData/Roaming/Claude}"
+GROK_HOME="${GROK_HOME:-/c/Users/matts/.grok}"
 
 # link_path|target_path|type (F=file, D=directory)
 LINKS=(
@@ -28,6 +29,10 @@ LINKS=(
   "$CLAUDE_HOME/skills|$SKILLS_SUITE/skills|D"
   "$CLAUDE_HOME/agents|$SKILLS_SUITE/agents|D"
   "$CLAUDE_APPDATA/claude_desktop_config.json|$SKILLS_SUITE/config/desktop/claude_desktop_config.json|F"
+  "$GROK_HOME/rules|$SKILLS_SUITE/config/grok/rules|D"
+  "$GROK_HOME/hooks|$SKILLS_SUITE/config/grok/hooks|D"
+  "$GROK_HOME/skills|$SKILLS_SUITE/skills|D"
+  "$GROK_HOME/agents|$SKILLS_SUITE/agents|D"
 )
 
 checked=0
@@ -61,7 +66,7 @@ for entry in "${LINKS[@]}"; do
 
   # Safety guard: refuse to touch anything outside the two known roots.
   case "$link" in
-    "$CLAUDE_HOME"/*|"$CLAUDE_APPDATA"/*) ;;
+    "$CLAUDE_HOME"/*|"$CLAUDE_APPDATA"/*|"$GROK_HOME"/*) ;;
     *)
       failed=$((failed+1))
       add_detail "${name}:outside-known-root"

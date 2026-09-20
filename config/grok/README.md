@@ -7,15 +7,27 @@ Claude Code injects `behavioral-reminders.txt` via SessionStart hook stdout.
 Grok **ignores SessionStart stdout**, so protocol has to live in files Grok
 actually loads: `$GROK_HOME/rules/*.md`.
 
-## What is already shared (no Grok-specific copy)
+## Shared vs Grok-only (all of it lives in this repo)
 
-| Layer | How Grok gets it |
-|-------|------------------|
-| Skills | Claude compat scans `~/.claude/skills` → this repo `skills/` |
-| Agent roles | Claude compat scans `~/.claude/agents` → this repo `agents/` |
-| Project docs | Grok loads `CLAUDE.md` / `Claude.md` / `AGENTS.md` as project rules |
-| MCP gateway | Native HTTP in `~/.grok/config.toml` (`mcp_servers.gateway`) |
-| Local hooks (side effects) | **Grok-native only:** `~/.grok/hooks` → `config/grok/hooks/grok-hooks.json`. Do **not** import Claude `settings.json` hooks on this machine (`[compat.claude] hooks = false`). Claude's hooks start with bare `bash`, which Grok resolves to WSL `C:\Windows\System32\bash.exe` (no distro `/bin/bash`) and spam-fails every PostToolUse. Claude Code forces Git Bash; Grok does not. Grok-native commands go through `config/grok/hooks/git-bash.cmd`. |
+Claude and Grok both load from `claude-skills-suite` via junctions. Do **not**
+copy skills. Do **not** import Claude `settings.json` hooks into Grok.
+
+| Layer | Canonical | `~/.claude` | `~/.grok` |
+|---|---|---|---|
+| Skills | `skills/` | junction | junction (same target) |
+| Agent roles | `agents/` | junction | junction (same target) |
+| Hooks | Claude: `config/code/settings.json`; Grok: `config/grok/hooks/` | settings.json symlink | hooks junction. `[compat.claude] hooks = false` |
+| Session protocol | Claude: SessionStart stdout; Grok: `config/grok/rules/` | n/a | rules junction |
+| Secrets / MCP token | machine-local | `~/.claude.json` | `~/.grok/config.toml` (never committed) |
+
+Why hooks are split: Claude's `settings.json` commands start with bare `bash`.
+Claude Code forces Git Bash; Grok resolves `bash` to WSL
+`C:\Windows\System32\bash.exe` (no distro `/bin/bash`) and spam-fails every
+PostToolUse. Grok-native commands go through `config/grok/hooks/git-bash.cmd`.
+
+Claude-compat **skills and agents stay on** so a repo's `.claude/skills/` and
+`.claude/agents/` (e.g. ql-g3 `designer-feedback`, `bench-operator`) still
+load. User-scoped copies are the junctions above; Grok dedupes by name.
 
 ## What this directory adds
 
@@ -31,6 +43,8 @@ Junctions (maintained by `scripts/verify-symlinks.sh`):
 
 - `~/.grok/rules` → `config/grok/rules`
 - `~/.grok/hooks` → `config/grok/hooks`
+- `~/.grok/skills` → `skills/` (same as `~/.claude/skills`)
+- `~/.grok/agents` → `agents/` (same as `~/.claude/agents`)
 
 `~/.grok/config.toml` is machine-local (Cloudflare Access token). Do not commit it.
 

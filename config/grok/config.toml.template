@@ -5,10 +5,10 @@
 [memory]
 enabled = false
 
-# Do not import ~/.claude/settings.json (or project .claude/settings.json)
-# hooks. Those commands use bare `bash` → WSL on this machine. Grok hooks
-# live in ~/.grok/hooks (junction to config/grok/hooks) and launch Git Bash
-# via git-bash.cmd. Skills/rules/agents Claude-compat can stay on.
+# Do not import Claude settings.json hooks (bare `bash` → WSL on this
+# machine). Grok hooks live in ~/.grok/hooks. Skills + agents stay on so
+# per-repo .claude/skills and .claude/agents still load; user-scoped copies
+# are ~/.grok/skills and ~/.grok/agents junctions onto this repo.
 [compat.claude]
 hooks = false
 
@@ -17,11 +17,12 @@ hooks = false
 # GROK_MAX_MCP_OUTPUT_BYTES=80000 in the environment.
 
 [skills]
-# Hide Trevor-era / deprecated skills. Live skills still load via Claude compat
-# (~/.claude/skills → this repo skills/).
+# Hide Trevor-era / deprecated skills. Live skills load from ~/.grok/skills
+# (junction to this repo skills/) and from Claude-compat project dirs.
 ignore = [
   "C:/dev/claude-skills-suite/skills/archive",
   "C:/Users/matts/.claude/skills/archive",
+  "C:/Users/matts/.grok/skills/archive",
 ]
 
 # Gateway (fill headers from ~/.claude.json / existing ~/.grok/config.toml):
