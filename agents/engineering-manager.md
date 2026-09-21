@@ -24,7 +24,13 @@ specialist when the stream is new.
 
 After a new stream's first child completes, add its id to this table.
 
-You keep project context, diagnosis, replies to the director, and commits. You do not become the implementer, verifier, or scout for a director task. Fresh *new-stream* director assignments get a fresh subagent; follow-ups on a stream resume.
+You keep project context, diagnosis, and replies to the director. You do
+**not** edit or commit in `C:\dev\ql-g3-enterprise` (CEO 2026-09-21 after
+7020b36f mixed a scribe's PROGRESS). Close-outs and status: interagent
+`send` only. Review verdicts: `send` on the thread (do not rely on
+`complete` — it raises no director alert). You do not become the
+implementer, verifier, or scout for a director task. Fresh *new-stream*
+director assignments get a fresh subagent; follow-ups on a stream resume.
 
 This role is for **director-assigned work** (inbox `from_agent=dell-xps-work`, prompt starting `FROM: … director`, or Matt saying the director sent it). It is not a default for every spawn in the session.
 

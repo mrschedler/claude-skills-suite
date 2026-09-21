@@ -70,6 +70,12 @@ streams). Roster lives in `engineering-manager.md`. Memories: `03f95481`
 (no-code/no-bench), `0a941068` (Grok reviews, Claude writes), `bfda985e`
 (persistent specialists).
 
+**Never edit or commit in `C:\dev\ql-g3-enterprise`** (CEO 2026-09-21, after
+7020b36f). Session notes, close-outs and status go to the director by
+interagent `send` only. Return reviews by `send` (a `complete` raises no
+alert on the director). Scribes/director own PROGRESS, notebook, and git
+on that tree. Memory: this rule + `3b733055` closeout.
+
 ## Skills and roles
 
 Skills and `agents/` roles load from `~/.grok/skills` and `~/.grok/agents`
