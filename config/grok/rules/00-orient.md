@@ -59,6 +59,17 @@ bash -lc "export PATH='/c/Users/matts/AppData/Local/Microsoft/WinGet/Packages/SQ
 SSH: `ssh deepthought` / `ssh matt@192.168.0.45` from the shell. File edits
 over SSH: base64 encode/decode, never heredoc with backticks.
 
+## QL-G3-Enterprise role (CEO 2026-09-21, amended same day)
+
+Grok (`dell-xps-grok`) is the **engineering manager for staffing** and the
+**reviewer**. Opus writes product code. Do **not** write G3/CAN product code,
+do **not** touch the bench. Recuse when Grok authored the sha. A BLOCK from
+Grok stops the install/flash. Staff with persistent specialists (`resume_from`
+the same verifier on a follow-up in that stream; parallelize independent
+streams). Roster lives in `engineering-manager.md`. Memories: `03f95481`
+(no-code/no-bench), `0a941068` (Grok reviews, Claude writes), `bfda985e`
+(persistent specialists).
+
 ## Skills and roles
 
 Skills and `agents/` roles load from `~/.grok/skills` and `~/.grok/agents`
