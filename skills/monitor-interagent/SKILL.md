@@ -42,31 +42,75 @@ interagent"):
    Monitor {
      description: "interagent inbox (project=<PROJECT>)",
      persistent: true,
-     command: "bash /c/dev/claude-skills-suite/hooks/interagent-monitor-poll.sh <interval>"
+     command: "INTERAGENT_MAX_LIFETIME_S=2100 bash /c/dev/claude-skills-suite/hooks/interagent-monitor-poll.sh <interval>"
    }
    ```
+   **`INTERAGENT_MAX_LIFETIME_S=2100` is not optional for this caller.** The Monitor
+   tool caps at 30 minutes and leaves its poller running past that, so without the cap
+   every armed watch leaves a process behind. At 2100s (35 min) the poller prints
+   `INTERAGENT poller lifetime reached (2100s) - re-arm` and exits 0; re-arm it the
+   same way if the user is still working.
+
    The script polls the `interagent_assignments` table over SSH (`ssh deepthought`
-   → `pgvector`), dedupes against a per-machine+project seen-file, and emits one line
-   per NEW pending message routed here (to this machine or `any`, tagged for this
-   project or untagged broadcast).
+   → `pgvector`) and emits one line per pending, **unclaimed** message routed here
+   (to this machine or `any`, tagged for this project or untagged broadcast), plus
+   sender-side lines for mail this machine sent.
+
+   Other callers of the same script, for reference:
+   ```bash
+   # Grok's PowerShell -> bash watcher (its own inbox name, no Monitor cap)
+   INTERAGENT_MACHINE=dell-xps-grok bash /c/dev/claude-skills-suite/hooks/interagent-monitor-poll.sh 5
+
+   # one pass, no arming (test)
+   bash /c/dev/claude-skills-suite/hooks/interagent-monitor-poll.sh --once
+   ```
 
 4. **Confirm to the user:** what's being watched (machine + project), the interval,
-   and that "stop monitoring" disarms it.
+   the 35-minute lifetime, and that "stop monitoring" disarms it.
+
+## The claim IS the acknowledgement — claim promptly, then work
+
+Nothing in this system stamps "delivered". The poller cannot prove a live reader
+(on Git-Bash a write into an unread pipe succeeds for 64 KiB, so every probe lies),
+so it does not try: **the acknowledgement is your `claim`**, which only a session
+that actually read the message can write.
+
+So: **claim first, then do the work.** Do not read a message, start working, and
+claim at the end. Until you claim it:
+
+- it is re-announced every time a poller is armed here, and
+- the sender is told `UNCLAIMED #id … - 5 min` and again at 15 and 60.
+
+Both are correct behaviour, not noise — an unclaimed message genuinely has nobody
+holding it.
 
 ## On each wake event (a line from the poller)
 
-Each emitted line is a chat event that wakes this session. When it fires:
+Each emitted line is a chat event that wakes this session.
 
-1. **Read once:** `interagent_call > inbox {machine: <MACHINE>}`.
-2. **Apply routing** (see README table):
-   - tagged `{type:"project", id:<this project>}` or addressed to this session →
-     surface **and** `claim`.
-   - untagged / broadcast → surface, **do NOT** claim (leave for sibling sessions).
-   - tagged for another project → **skip**.
-3. **Act on the assignment**, then close the loop on the agent side, not just to the
-   user: reply with `interagent_call > complete {id, result}` (or `send` a follow-up
-   to the originating agent/machine). Per Matt's standing instruction: when you have a
-   response to another agent's question, tell the AGENT (via interagent), not only Matt.
+| Line | What it means | What to do |
+|---|---|---|
+| `INTERAGENT new #id [project=…] from …` | pending, unclaimed, routed here | `inbox`, then **`claim` at once**, then work, then `complete` |
+| `INTERAGENT new #id [broadcast] from …` | untagged broadcast, under 24h old | surface it; **do NOT claim** (leave it for sibling sessions) |
+| `CLAIMED #id by <who> after <n> s` | mail *you sent* was picked up | nothing — it is confirmation |
+| `COMPLETED #id: <result snippet>` | that work is done | read the snippet; `inbox` for the full result if you need it |
+| `UNCLAIMED #id <title> - 5/15/60 min` | mail *you sent* has nobody holding it | the receiver is not watching, is busy, or is offline. Chase it another way, or tell Matt |
+| `INTERAGENT WARN: poll failed …` | the ssh/psql hop is down | **not** an empty inbox. Nothing was marked seen; it will all be re-announced on recovery |
+| `INTERAGENT recovered: …` | the hop is back | nothing |
+| `INTERAGENT poller lifetime reached …` | the 35-minute cap | re-arm if still working |
+
+Routing for what you claim (see the README table):
+
+- tagged `{type:"project", id:<this project>}` or addressed to this session →
+  surface **and** `claim`.
+- untagged / broadcast → surface, **do NOT** claim (leave for sibling sessions).
+- tagged for another project → **skip**.
+
+Then **act on the assignment** and close the loop on the agent side, not just to
+the user: reply with `interagent_call > complete {id, result}` (or `send` a
+follow-up to the originating agent/machine). Per Matt's standing instruction:
+when you have a response to another agent's question, tell the AGENT (via
+interagent), not only Matt.
 
 ## Notes
 
@@ -78,3 +122,12 @@ Each emitted line is a chat event that wakes this session. When it fires:
   human — not part of this agent-to-agent path. Only use it if the user asks to be
   pinged personally.
 - Test the poller without arming: `bash /c/dev/claude-skills-suite/hooks/interagent-monitor-poll.sh --once`.
+- **Re-arming re-announces still-unclaimed mail. That is intended** — a message
+  nobody claimed should come back. Old untagged broadcasts (over 24h) do not, and
+  `CLAIMED`/`COMPLETED` from before the poller started are never replayed.
+- Each poller keeps its dedupe state in its own per-pid directory under
+  `%LOCALAPPDATA%\claude-interagent\`, deleted on exit. Two pollers cannot
+  interfere with each other, so a leftover one from an expired Monitor is harmless
+  — you never need to hunt for a stale pidfile or "clear the seen-file" before arming.
+- Offline test suite (no network, no live DB):
+  `bash /c/dev/claude-skills-suite/hooks/testdata/interagent-delivery-ack/run-tests.sh`.
