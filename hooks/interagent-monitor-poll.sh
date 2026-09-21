@@ -173,13 +173,15 @@ sweep_dead_proc_dirs() {
   local d pid
   for d in "$STATE_ROOT"/proc-*; do
     [[ -d "$d" ]] || continue
-    if [[ -f "$d/owner" ]]; then
-      pid=$(awk '{print $1}' "$d/owner" 2>/dev/null)
+    pid=$(awk 'NR==1{print $1}' "$d/owner" 2>/dev/null)
+    if [[ "$pid" =~ ^[0-9]+$ ]]; then
       pid_is_poller "$pid" && continue          # live poller — hands off
       rm -rf "$d" 2>/dev/null
     else
-      # No owner file: half-created by a poller starting right now, or left by
-      # an older build. Only age can judge it, and only generously.
+      # NO READABLE OWNER — missing, empty, or unparseable. That is "unknown",
+      # NEVER "dead": a dir half-created by a poller starting this instant
+      # looks exactly like one left by an older build. Only age may judge it,
+      # and only past a day.
       find "$d" -maxdepth 0 -type d -mtime +0 -exec rm -rf {} + 2>/dev/null
     fi
   done
@@ -189,8 +191,17 @@ sweep_dead_proc_dirs
 # A FRESH, EMPTY directory per START. mktemp -d is O_EXCL, so state from a
 # previous run — or from a recycled pid — can never be inherited: a pre-seeded
 # seen-file would silently swallow unclaimed mail.
+#
+# The owner file is written ONCE, and atomically (temp name then mv), because a
+# sweep by another poller may read it at any instant. Rewriting it in place per
+# poll truncates it first, and a sweep landing in that window would see an
+# empty owner on a live dir.
 new_proc_dir() {
-  mktemp -d "$STATE_ROOT/proc-${MACHINE}-${PROJECT}-${MAIN_PID}-XXXXXX"
+  local d
+  d=$(mktemp -d "$STATE_ROOT/proc-${MACHINE}-${PROJECT}-${MAIN_PID}-XXXXXX") || return 1
+  printf '%s %s\n' "$MAIN_PID" "$START_TOKEN" > "$d/.owner.tmp" 2>/dev/null
+  mv -f "$d/.owner.tmp" "$d/owner" 2>/dev/null
+  printf '%s' "$d"
 }
 PROC_DIR=$(new_proc_dir)
 
@@ -293,9 +304,12 @@ ensure_proc_dir() {
     ERR_FILE="$PROC_DIR/psql.err"
     say "INTERAGENT WARN: state dir vanished - recreated (dedupe state lost; still-unclaimed mail will be re-announced)"
   fi
-  printf '%s %s\n' "$MAIN_PID" "$START_TOKEN" > "$PROC_DIR/owner" 2>/dev/null
+  # The owner file is NEVER rewritten here — new_proc_dir wrote it once,
+  # atomically. A per-poll `printf > owner` truncates before it writes, and a
+  # concurrent sweep landing in that window reads an empty owner on a LIVE dir.
+  # Liveness is signalled on a separate file that nobody judges by.
   [[ -s "$SQL_FILE" ]] || write_sql_file
-  touch "$PROC_DIR" 2>/dev/null       # diagnostics only; nothing judges by age
+  touch "$PROC_DIR" "$PROC_DIR/heartbeat" 2>/dev/null   # diagnostics only
   return 0
 }
 ensure_proc_dir

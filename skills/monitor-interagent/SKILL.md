@@ -88,6 +88,17 @@ interagent"):
    bash /c/dev/claude-skills-suite/hooks/interagent-monitor-poll.sh --once
    ```
 
+   **Rolling this out across a fleet: one pass, not session by session.** Old and
+   new pollers must not coexist on a machine — an old-format state file carries no
+   owner record, so a new poller's sweep can judge it only by age and will remove a
+   quiet-but-live old poller's state after about a day. So: `/monitor-interagent
+   stop` in **every** live session first; install *both*
+   `hooks/interagent-monitor-poll.sh` and `hooks/interagent-monitor-process.js`
+   (the poller does nothing without the second); re-arm each session with
+   `INTERAGENT_MACHINE` **and** `INTERAGENT_PROJECT` set; and in each one confirm
+   the first stdout line says `source=INTERAGENT_PROJECT` and names the project you
+   meant. Any other source, or the wrong project, means disarm and re-arm.
+
 4. **Confirm to the user:** what's being watched (machine + project), the interval,
    the 35-minute lifetime, and that "stop monitoring" disarms it.
 

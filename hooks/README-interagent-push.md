@@ -230,21 +230,37 @@ this fleet do not agree with each other.
 There is **no migration**: this build reads columns that already exist and writes
 nothing. Deployment is the code only.
 
-1. Land the code on `main`; Syncthing propagates `C:\dev\claude-skills-suite` to
-   each machine.
-2. A live session picks it up **on the next arm**, not in flight — the running
-   poller is the old script already loaded by bash. In each session that wants
-   the new behaviour: `/monitor-interagent stop`, then `monitor interagent`.
-3. **Old and new pollers coexist safely.** Both run a read-only query, neither
-   writes to the database, and their state files do not collide (old:
-   `seen-<machine>-<project>.txt`; new: a `proc-…-<pid>/` directory). A session
-   left on the old poller simply gets no sender-side lines. Stale `seen-*.txt`
-   files from the old build are inert and can be deleted at leisure.
-4. **Rollback** is reverting the code. There is nothing else to undo.
+**Switch every session in ONE pass. Old and new pollers must NOT coexist on a
+shared state root.** They are safe as far as the database goes — both run a
+read-only query and neither writes — but an old-format directory carries no
+`owner` file, so a new poller's sweep can judge it only by age and will
+age-remove a *quiet but live* old poller's state after about a day. Do not
+leave a session on the old build overnight.
+
+1. **Stop every old poller first.** In each live session: `/monitor-interagent
+   stop`. Confirm none is left (`TaskList`; and `%LOCALAPPDATA%\claude-interagent\`
+   should hold no `seen-*.txt` belonging to a running process).
+2. **Install `hooks/interagent-monitor-poll.sh` AND
+   `hooks/interagent-monitor-process.js`** — the poller does nothing without the
+   second file. Land the code on `main`; Syncthing propagates
+   `C:\dev\claude-skills-suite` to each machine.
+3. **Re-arm each session** with both names set explicitly:
+   `INTERAGENT_MACHINE=<name> INTERAGENT_PROJECT=<project> INTERAGENT_MAX_LIFETIME_S=2100 bash …/interagent-monitor-poll.sh 5`.
+   A running poller never picks up new code in flight — it is the old script
+   already loaded by bash.
+4. **Confirm the first stdout line**, which is the scope the poller actually
+   resolved:
+   `INTERAGENT watching machine=… project=… (interval 5s, source=INTERAGENT_PROJECT)`.
+   If `source` is not `INTERAGENT_PROJECT`, or the project is not the one you
+   meant, disarm and re-arm — a poller on the wrong scope looks healthy and
+   delivers nothing.
+5. Stale `seen-*.txt` files from the old build are inert and can be deleted at
+   leisure.
+6. **Rollback** is reverting the code. There is nothing else to undo.
 
 ### Tests
 
-`bash hooks/testdata/interagent-delivery-ack/run-tests.sh` — 11 arms and 6
+`bash hooks/testdata/interagent-delivery-ack/run-tests.sh` — 19 arms and 14
 mutants, fully offline against a fake DB (no ssh, no live pgvector, no
 migration). The round-2 killer repro — an unread-holder orphan running alongside
 a live poller — is a permanent arm.

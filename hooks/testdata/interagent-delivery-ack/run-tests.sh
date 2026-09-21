@@ -252,6 +252,34 @@ arm_proc_dir_starts_empty() {
   teardown
 }
 
+# ARM: an owner file that cannot be read is UNKNOWN, not DEAD. A dir created
+# this instant has no owner yet, and a truncated one looks identical — so
+# treating "empty owner" as "owner dead" lets one poller's sweep delete a LIVE
+# poller's state. (Which is also why the owner file is written once,
+# atomically, and never rewritten per poll: a per-poll rewrite truncates first
+# and opens exactly that window.)
+arm_empty_owner_is_not_dead() {
+  setup_env rcvr
+  db_write '{"assignments":[]}'
+
+  INTERAGENT_MAX_LIFETIME_S=22 bash "$POLLER" 1 >"$TMP/live.out" 2>"$TMP/live.err" & local LIVE=$!
+  sleep 4
+  local d; d=$(ls -d "$STATE"/proc-* 2>/dev/null | head -1)
+  assert_eq "the live poller has a state dir" "1" "$(ls -d "$STATE"/proc-* 2>/dev/null | wc -l | tr -d ' ')"
+
+  : > "$d/owner"                       # exactly what a truncate window looks like
+  INTERAGENT_MAX_LIFETIME_S=3 bash "$POLLER" 1 >/dev/null 2>&1   # a second poller sweeps
+  assert_eq "a second poller does not delete a live dir with an empty owner" "1" \
+    "$(ls -d "$d" 2>/dev/null | wc -l | tr -d ' ')"
+
+  db_write '{"assignments":[{"id":901,"title":"after the empty-owner sweep","from_agent":"sender","to_target":"rcvr","status":"pending","ttl_hours":24,"context_refs":[],"created_at":"'"$(iso_shift 0)"'"}]}'
+  wait $LIVE
+  local out; out=$(cat "$TMP/live.out")
+  assert_contains     "the live poller still delivers" "INTERAGENT new #901" "$out"
+  assert_not_contains "  ...and never lost its state"  "state dir vanished"  "$out"
+  teardown
+}
+
 # ARM (reviewer BLOCK 3): ConnectTimeout only bounds the TCP connect. A hop that
 # connects and then hangs blocks the loop past even MAX_LIFETIME_S, so the hop
 # needs a hard timeout — and a killed hop is a FAILURE, never an empty poll.
@@ -514,7 +542,7 @@ arm_known_bad() {
 }
 
 ARMS="orphan_no_steal wrong_name scope_banner_and_override \
-stale_sweep_spares_live_dirs proc_dir_starts_empty \
+stale_sweep_spares_live_dirs proc_dir_starts_empty empty_owner_is_not_dead \
 hop_failure_warns hop_truncated_reply hop_hangs \
 rearm_reannounces broadcast_24h durable_todo_ttl_null_is_emitted \
 claimed_completed_once alarms_5_15_60 seed_uses_db_clock \
@@ -565,6 +593,7 @@ MUTANTS=(
   "proc-dir-reused-across-starts|proc_dir_starts_empty|poller|s@^PROC_DIR=.*@PROC_DIR=\"\$STATE_ROOT/proc-\${MACHINE}-\${PROJECT}-\${MAIN_PID}\"; mkdir -p \"\$PROC_DIR\"@"
   "hop-timeout-removed|hop_hangs|poller|s@^    out=\$(timeout \"\$HOP_TIMEOUT_S\" bash \"\$INTERAGENT_PSQL_WRAPPER\".*@    out=\$(bash \"\$INTERAGENT_PSQL_WRAPPER\" < \"\$SQL_FILE\" 2>\"\$ERR_FILE\"); rc=\$?@"
   "seed-uses-local-clock|seed_uses_db_clock|process|s@^    startMs = nowMs;@    startMs = Date.now();@"
+  "empty-owner-treated-as-dead|empty_owner_is_not_dead|poller|s@^    if \[\[ \"\$pid\" =~ .*@    if [[ -f \"\$d/owner\" ]]; then@"
   "hop-failure-as-empty|hop_failure_warns|poller|s@^    hop_failed .*@    return 0@"
   "alarm-fires-for-a-claimed-row|no_alarm_when_claimed|process|s@^    const unclaimed = .*@    const unclaimed = true;@"
   "COMPLETED-every-poll|claimed_completed_once|process|s@'COMPLETED-' + id@'COMPLETED-' + id + Math.random()@"
