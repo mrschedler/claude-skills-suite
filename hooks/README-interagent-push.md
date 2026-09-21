@@ -110,6 +110,29 @@ bridges gateway → session. Project routing + new-vs-seen dedup are done in the
 poller (a non-synced seen-file per machine+project); test it without arming via
 `bash interagent-monitor-poll.sh --once`.
 
+## Iteration 3 — delivery ack + sender visibility
+
+Pickup is not the same as claim. When a live poller **emits** an inbox line it
+stamps nullable `delivered_to` / `delivered_at` (never touches `claimed_by` /
+`status`). The same poll also watches rows **this machine sent** and emits:
+
+| Line | Meaning |
+|------|---------|
+| `DELIVERED #id to <machine> at T` | receiver poller acked pickup |
+| `CLAIMED #id by <machine>` | receiver claimed |
+| `COMPLETED #id by <machine>: <~200 chars of result>` | `complete {result}` is visible to the sender |
+| `UNDELIVERED #id to <target> for >M min — receiver not acking (old poller or offline)` | no stamp after `INTERAGENT_UNDELIVERED_MIN` (default 5); repeats sparsely at 5 / 15 / 60 min via seen-file keys `ALARM-5-<id>` etc. |
+
+Each poll is **one SQL round trip** (CTE): upsert `interagent_watchers` heartbeat,
+stamp newly matched inbox rows, return inbox pending ∪ sent rows. Pidfile
+`%LOCALAPPDATA%/claude-interagent/poller-<machine>-<project>.pid` refuses a
+second live poller on the same seen-file (replaces a dead pid). Broken Monitor
+stdout → poller exits. Migration:
+`migrations/0001_interagent_delivery_ack.sql` (+ rollback). **Do not apply to
+live pgvector until verifier review.** Old pollers keep working (nullable
+columns, no renames). Offline tests:
+`hooks/testdata/interagent-delivery-ack/run-tests.sh`.
+
 ## Human notification (separate layer, not agent-to-agent)
 
 `PushNotification` (desktop/phone) pings **Matt**, not an agent. Optionally use it
@@ -121,7 +144,9 @@ agent-to-agent path.
 | File | Role |
 |------|------|
 | `hooks/interagent-inbox-nudge.sh` | the `UserPromptSubmit` nudge (iteration 1, push-on-activity) |
-| `hooks/interagent-monitor-poll.sh` | the `monitor interagent` poll loop (iteration 2, idle reaction); run by the `Monitor` tool, NOT wired as a hook |
+| `hooks/interagent-monitor-poll.sh` | the `monitor interagent` poll loop (idle reaction + delivery ack); run by the `Monitor` tool, NOT wired as a hook |
+| `hooks/interagent-monitor-process.js` | formats inbox/sender/alarm lines; seen-file dedupe |
+| `migrations/0001_interagent_delivery_ack.sql` | additive `delivered_*` + `interagent_watchers` (not applied until review) |
 | `config/code/settings.json` → `hooks.UserPromptSubmit` | wires the nudge hook |
 | `config/code/behavioral-reminders.bp.txt` Step 5 | session-start check + routing rules + command vocabulary |
 | this file | design + convention + commands + roadmap |
@@ -129,9 +154,10 @@ agent-to-agent path.
 ## Roadmap / open questions
 
 1. ~~**Idle reaction** — Monitor poller~~ ✅ done (iteration 2: `interagent-monitor-poll.sh` + `monitor interagent`).
-2. **Per-session addressing upstream** — if project-tag routing proves too coarse,
+2. ~~**Delivery ack + sender visibility**~~ ✅ done (iteration 3; migration pending live apply).
+3. **Per-session addressing upstream** — if project-tag routing proves too coarse,
    decide whether session-level addressing should become a first-class
    `interagent` feature (that work lands in **mcp-gateway**, not here).
-3. **Throttle vs latency** — 120s is a guess; tune against real use.
-4. **Claim races** — two sibling sessions briefly racing on an untagged broadcast;
+4. **Throttle vs latency** — 120s is a guess; tune against real use.
+5. **Claim races** — two sibling sessions briefly racing on an untagged broadcast;
    acceptable for now (we don't claim broadcasts), revisit if it bites.

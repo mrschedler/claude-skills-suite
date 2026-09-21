@@ -22,7 +22,7 @@ args — `machine` arrives as undefined. This bit multiple sessions. Always nest
 (Same nesting applies to `vault_call` and `redis_call`.)
 
 ## Scope resolution
-- `MACHINE` = `machine:` line from `/c/dev/.machine-id` (e.g. dell-xps, skip).
+- `MACHINE` = `$INTERAGENT_MACHINE` if set (e.g. `dell-xps-work`, `dell-xps-grok`), else the `machine:` line from `/c/dev/.machine-id` (e.g. dell-xps, skip).
 - `PROJECT` = `git rev-parse --show-toplevel` basename, else cwd basename.
 - Use these for `from`, `machine`, and (via `topic`/`context_refs`) project tagging.
 
@@ -46,7 +46,7 @@ then `get` the one you care about.
 | "read message 142 / open that one" | `get {id:142}` |
 | "I'll take that one / claim it" | `claim {id, machine:MACHINE}` |
 | "mark it done: <result>" | `complete {id, result}` (status defaults 'completed'; 'failed' on failure) |
-| "did <agent> pick up my message?" | `check {id}` |
+| "did <agent> pick up my message?" | `check {id}` — full row (`SELECT *`); includes nullable `delivered_to` / `delivered_at` once the delivery-ack migration is applied. Live watchers also emit `DELIVERED` / `CLAIMED` / `COMPLETED` / `UNDELIVERED` lines (see monitor-interagent). |
 | "tidy / archive that completed item" | `archive {id}` (hides from inbox/list, preserves history) |
 | "monitor interagent / watch for messages" | → use the **monitor-interagent** skill (arms a background poller) |
 
@@ -84,6 +84,9 @@ When you have an answer to another agent's question, **close the loop on the age
 - Durable + offline-safe: rows persist whether or not a session is watching. A live watcher
   (monitor-interagent) just makes a session react *immediately*; without it, the next inbox
   read still finds everything.
+- Delivery ack (migration `0001_interagent_delivery_ack`): pollers stamp `delivered_to` /
+  `delivered_at` on emit. `check` already returns `SELECT *`, so those columns ride along
+  after apply — no gateway change required. Old pollers remain compatible (nullable, no renames).
 - Tool mechanics live in `interagent_list`; this skill is the intent→call layer; the
   SessionStart/UserPromptSubmit hook is the habit layer (reminds you to check). Three layers,
   so discovery is pull, not recall.
