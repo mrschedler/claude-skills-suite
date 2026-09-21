@@ -82,11 +82,54 @@ MACHINE="${INTERAGENT_MACHINE:-}"
 [[ -z "$MACHINE" ]] && MACHINE=$(sed -n 's/^machine:[[:space:]]*//p' /c/dev/.machine-id 2>/dev/null | head -1)
 MACHINE="${MACHINE:-unknown}"
 
+# PROJECT scope. Launched as PowerShell -> Git-Bash `-lc`, the LOGIN shell starts
+# in $HOME, so an inferred project silently becomes the home directory's basename
+# and the poller then watches a project nobody sends to — a blind watch that
+# looks perfectly healthy. INTERAGENT_PROJECT is therefore the documented way to
+# set it (see skills/monitor-interagent/SKILL.md), and an inferred value that
+# smells like $HOME or the filesystem root is called out once instead of being
+# used in silence.
+# `git rev-parse --show-toplevel` answers in Windows form (C:/Users/matts) while
+# $HOME and `pwd` are in MSYS form (/c/Users/matts), so the two never compare
+# equal as strings. Normalise before deciding anything — the un-normalised
+# version of this check silently failed to fire on the one machine it was
+# written for.
+norm_path() {
+  local p="${1:-}"
+  [[ -z "$p" ]] && return 0
+  if command -v cygpath >/dev/null 2>&1; then
+    p=$(cygpath -u "$p" 2>/dev/null) || p="$1"
+  fi
+  printf '%s' "${p%/}"
+}
+
 PROJECT="${INTERAGENT_PROJECT:-}"
+PROJECT_SOURCE="INTERAGENT_PROJECT"
+PROJECT_SUSPECT=""
 if [[ -z "$PROJECT" ]]; then
+  HOME_N=$(norm_path "${HOME:-}")
   GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-  if [[ -n "$GIT_ROOT" ]]; then PROJECT=$(basename "$GIT_ROOT"); else PROJECT=$(basename "$(pwd)"); fi
+  if [[ -n "$GIT_ROOT" ]]; then
+    PROJECT=$(basename "$GIT_ROOT")
+    PROJECT_SOURCE="git root $GIT_ROOT"
+    GIT_ROOT_N=$(norm_path "$GIT_ROOT")
+    if [[ -n "$HOME_N" && "$GIT_ROOT_N" == "$HOME_N" ]]; then
+      PROJECT_SUSPECT="that git root IS your home directory"
+    elif [[ -n "$HOME_N" && "$HOME_N" == "$GIT_ROOT_N"/* ]]; then
+      PROJECT_SUSPECT="your home directory sits inside that git root, so it is not a project scope"
+    fi
+  else
+    PWD_N=$(norm_path "$(pwd)")
+    PROJECT=$(basename "$(pwd)")
+    PROJECT_SOURCE="cwd $(pwd)"
+    if [[ -n "$HOME_N" && "$PWD_N" == "$HOME_N" ]]; then
+      PROJECT_SUSPECT="the working directory IS your home directory (a login shell starts there)"
+    elif [[ "$PWD_N" == "" || "$PWD_N" == "/" ]]; then
+      PROJECT_SUSPECT="the working directory is the filesystem root"
+    fi
+  fi
 fi
+[[ -z "$PROJECT" ]] && { PROJECT="unknown"; PROJECT_SUSPECT="nothing usable to infer it from"; }
 
 STATE_DIR=$(printf '%s' "${LOCALAPPDATA:-${TEMP:-/tmp}}/claude-interagent" | tr '\\' '/')
 mkdir -p "$STATE_DIR" 2>/dev/null
@@ -118,7 +161,9 @@ SENT_SQL=$((SENT_HOURS + 0))
 
 SCHEMA_MODE="unknown"     # full | legacy
 WARNED_LEGACY=0
-LAST_ERR_AT=0
+WARNED_PROJECT=0
+WARNED_BLIND=0
+SQL_FAILS=0
 SQL_RC=0
 SQL_ERR=""
 CHALLENGED=0
@@ -126,21 +171,41 @@ CHALLENGED=0
 # ── transport ────────────────────────────────────────────────────────────────
 # SQL always goes over stdin. The remote command carries no interpolated data,
 # which is what makes MACHINE / PROJECT safe against quotes, backticks and $( ).
+#
+# The result goes to a FILE and the caller reads SQL_OUT, rather than
+# `json=$(run_sql …)`. In a command substitution the whole function runs in a
+# subshell, so SQL_RC and SQL_ERR would be assigned there and lost — the caller
+# would see the initial 0 and an empty error string for every failed hop. That
+# is precisely the "a dropped SSH hop looks like an empty inbox" failure.
+SQL_OUT=""
 run_sql() {
-  local sql="$1" err_file out rc
+  local sql="$1" err_file out_file
   err_file="$STATE_DIR/.sqlerr-$$"
+  out_file="$STATE_DIR/.sqlout-$$"
   if [[ -n "${INTERAGENT_PSQL_WRAPPER:-}" ]]; then
-    out=$(printf '%s' "$sql" | bash "$INTERAGENT_PSQL_WRAPPER" 2>"$err_file")
-    rc=$?
+    printf '%s' "$sql" | bash "$INTERAGENT_PSQL_WRAPPER" >"$out_file" 2>"$err_file"
+    SQL_RC=$?
   else
-    out=$(printf '%s' "$sql" | ssh -o ConnectTimeout=8 -o BatchMode=yes deepthought \
-      'docker exec -i pgvector psql -U postgres homelab -At -q -v ON_ERROR_STOP=1 -f -' 2>"$err_file")
-    rc=$?
+    printf '%s' "$sql" | ssh -o ConnectTimeout=8 -o BatchMode=yes deepthought \
+      'docker exec -i pgvector psql -U postgres homelab -At -q -v ON_ERROR_STOP=1 -f -' \
+      >"$out_file" 2>"$err_file"
+    SQL_RC=$?
   fi
-  SQL_RC=$rc
   SQL_ERR=$(head -c 2000 "$err_file" 2>/dev/null)
-  rm -f "$err_file"
-  printf '%s' "$out"
+  SQL_OUT=$(cat "$out_file" 2>/dev/null)
+  rm -f "$err_file" "$out_file"
+  return "$SQL_RC"
+}
+
+# Every successful reply is a JSON envelope carrying "schema" — that key IS the
+# sentinel. An empty inbox still produces one ({"schema":…,"rows":[]}), so
+# "no rows" and "the query never ran" are distinguishable without a second
+# round trip. Anything else is a failed poll, however it exited.
+sql_reply_is_real() {
+  [[ $SQL_RC -eq 0 ]] || return 1
+  [[ -n "$SQL_OUT" ]] || return 1
+  case "$SQL_OUT" in *'"schema"'*) return 0 ;; esac
+  return 1
 }
 
 # ── reader-gone detection ────────────────────────────────────────────────────
@@ -211,18 +276,54 @@ try_create_pidfile() {
   ( set -o noclobber; printf '%s %s\n' "$$" "$LOCK_TOKEN" > "$PIDFILE" ) 2>/dev/null
 }
 
+# T7: Grok's unattended dispatcher and an interactive TUI poller are BOTH live
+# watchers for the same machine inbox. They keep separate state directories, so
+# neither pidfile sees the other, yet they race to claim the same mail and both
+# would stamp it. The pidfile rule has to span the pair, so each refuses while
+# the other is running. Named, with the pid and the cmdline, because "already
+# running" without saying what is running is what sends people hunting.
+DISPATCH_PIDFILE=$(printf '%s' "${LOCALAPPDATA:-${TEMP:-/tmp}}/grok-interagent/dispatch.pid" | tr '\\' '/')
+
+refuse_if_dispatcher_running() {
+  local pid cmd
+  pid=$(head -n 1 "$DISPATCH_PIDFILE" 2>/dev/null | awk '{print $1}')
+  [[ -z "$pid" ]] && return 0
+  kill -0 "$pid" 2>/dev/null || return 0
+  cmd=$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null)
+  case "$cmd" in
+    *interagent-dispatch.sh*) ;;
+    *) return 0 ;;                       # stale pidfile over a recycled pid
+  esac
+  echo "interagent-monitor-poll: refusing — the Grok dispatcher is already watching this machine's inbox." >&2
+  echo "  pid=$pid  cmdline=$cmd" >&2
+  echo "  They would race on claim and both stamp delivery. Stop one:" >&2
+  echo "    bash /c/dev/claude-skills-suite/config/grok/interagent-dispatch.sh --stop" >&2
+  exit 1
+}
+
 acquire_pidfile() {
-  local attempt old deadline
-  # Wall-clock bounded, not iteration bounded: spawning `sleep` costs ~0.5s on
-  # MSYS, so a loop counter is not a time budget.
-  local give_up=$((SECONDS + 20))
-  for attempt in 1 2 3 4 5; do
-    (( SECONDS >= give_up )) && break
+  local old deadline
+  refuse_if_dispatcher_running
+  # Wall-clock bounded, not attempt bounded. A fixed number of attempts is not a
+  # time budget on MSYS (spawning `sleep` costs ~0.5s), and — worse — contention
+  # burns attempts that made progress: reaping a stale file and standing an
+  # orphan down are both successes, and neither should count against the
+  # session's chance of getting a poller. The ONLY fast refusal is a genuine live
+  # holder that answered the challenge.
+  local give_up=$((SECONDS + ${INTERAGENT_LOCK_WAIT:-45}))
+  while (( SECONDS < give_up )); do
     if try_create_pidfile; then
       trap release_pidfile EXIT
       return 0
     fi
     old=$(pidfile_owner)
+    if [[ -z "$old" || "$old" == "$MAIN_PID" ]]; then
+      # Empty, or our OWN pid: a leftover from a previous process that happened
+      # to have this pid. Challenging it would mean signalling ourselves and then
+      # waiting for a pidfile that can never change — a self-inflicted deadlock.
+      rm -f "$PIDFILE"
+      continue
+    fi
     if ! holder_is_genuine "$old"; then
       # Dead pid, or a pid recycled onto some unrelated MSYS process. Reap it —
       # a live session must never be locked out by a stale or foreign pid.
@@ -246,7 +347,7 @@ acquire_pidfile() {
       exit 1
     fi
   done
-  echo "interagent-monitor-poll: could not acquire $PIDFILE after 5 attempts" >&2
+  echo "interagent-monitor-poll: could not acquire $PIDFILE within ${INTERAGENT_LOCK_WAIT:-45}s — this session has NO poller" >&2
   exit 1
 }
 
@@ -291,7 +392,12 @@ upsert_watcher AS (
         last_poll_at = now()
   RETURNING machine
 ),
--- Stamp ONLY ids the previous poll actually wrote to a live reader.
+-- Stamp ONLY ids the previous poll actually wrote to a live reader, AND only
+-- rows actually addressed to this machine. The routing predicate is redundant
+-- with how the ids got into the ack-file — and it stays anyway: an ack-file left
+-- behind by a renamed profile, or a poller started with the wrong
+-- INTERAGENT_MACHINE, must never be able to write "delivered to me" onto another
+-- session's mail. delivered_to records which poller claimed the pickup.
 stamp_delivered AS (
   UPDATE interagent_assignments a
   SET delivered_to = p.machine,
@@ -299,6 +405,7 @@ stamp_delivered AS (
   FROM params p
   WHERE a.id = ANY (p.ack_ids)
     AND a.delivered_at IS NULL
+    AND (a.to_target = p.machine OR a.to_target = 'any')
   RETURNING a.id
 ),
 inbox AS (
@@ -415,17 +522,40 @@ warn_legacy_once() {
   say "$msg"
 }
 
-# One line on stdout at most every 10 minutes, so a broken transport is visible
-# without flooding the session.
-warn_sql_error() {
-  local now_s=$((SECONDS))
-  (( now_s - LAST_ERR_AT < 600 )) && return 0
-  LAST_ERR_AT=$now_s
+warn_project_once() {
+  [[ -z "$PROJECT_SUSPECT" ]] && return 0
+  [[ "$WARNED_PROJECT" == "1" ]] && return 0
+  WARNED_PROJECT=1
+  local msg="WARN: interagent project scope inferred as '$PROJECT' from $PROJECT_SOURCE — $PROJECT_SUSPECT. Mail tagged for a real project will be ignored. Set INTERAGENT_PROJECT in the monitor command."
+  echo "$msg" >&2
+  say "$msg"
+}
+
+# The SSH hop to deepthought drops roughly every half hour. A dropped hop must
+# never read as "your inbox is empty": on a failed poll nothing is stamped, the
+# ack-file is not drained, the since high-water is not advanced, the seen-file is
+# not appended to, and no alarm is cleared — poll_once returns before any of that
+# happens. What is left is telling the session its watch has gone blind, once,
+# after BLIND_AFTER consecutive failures, plus one all-clear when it recovers.
+BLIND_AFTER="${INTERAGENT_BLIND_AFTER:-3}"
+note_sql_failure() {
+  SQL_FAILS=$((SQL_FAILS + 1))
   local first
   first=$(printf '%s' "$SQL_ERR" | tr '\n' ' ' | head -c 200)
-  [[ -z "$first" ]] && first="psql exited $SQL_RC with no output"
-  echo "WARN: interagent poll failed: $first" >&2
-  say "WARN: interagent poll failed: $first"
+  [[ -z "$first" ]] && first="psql exited $SQL_RC and returned no envelope (hop down?)"
+  echo "interagent poll failed ($SQL_FAILS consecutive): $first" >&2
+  if (( SQL_FAILS >= BLIND_AFTER )) && [[ "$WARNED_BLIND" != "1" ]]; then
+    WARNED_BLIND=1
+    say "WARN: interagent watch is BLIND — $SQL_FAILS consecutive failed polls (${first}). New mail will not be announced until this clears."
+  fi
+}
+
+note_sql_success() {
+  if [[ "$WARNED_BLIND" == "1" ]]; then
+    WARNED_BLIND=0
+    say "INTERAGENT watch recovered after $SQL_FAILS failed polls."
+  fi
+  SQL_FAILS=0
 }
 
 looks_like_missing_schema() {
@@ -435,18 +565,21 @@ looks_like_missing_schema() {
 
 detect_schema() {
   local out
-  out=$(run_sql "$(probe_schema_sql)")
-  out=$(printf '%s' "$out" | tr -d '\r' | head -n 1 | tr -d '[:space:]')
+  run_sql "$(probe_schema_sql)"
+  out=$(printf '%s' "$SQL_OUT" | tr -d '\r' | head -n 1 | tr -d '[:space:]')
   case "$out" in
     full)   SCHEMA_MODE="full" ;;
     legacy) SCHEMA_MODE="legacy"; warn_legacy_once ;;
     *)
-      # Probe itself failed (transport down). Assume full and let the first poll
-      # surface the real error rather than guessing into silence.
-      SCHEMA_MODE="full"
-      [[ $SQL_RC -ne 0 || -n "$SQL_ERR" ]] && warn_sql_error
+      # The probe itself did not run (hop down). Stay "unknown" so the NEXT poll
+      # probes again — latching to a mode on the strength of a failed query is
+      # how a transient hop drop turns into a permanently wrong schema guess.
+      SCHEMA_MODE="unknown"
+      note_sql_failure
+      return 1
       ;;
   esac
+  return 0
 }
 
 # ── ack bookkeeping ──────────────────────────────────────────────────────────
@@ -471,7 +604,11 @@ poll_once() {
     exit 0
   fi
 
-  [[ "$SCHEMA_MODE" == "unknown" ]] && detect_schema
+  warn_project_once
+
+  if [[ "$SCHEMA_MODE" == "unknown" ]]; then
+    detect_schema || return 0
+  fi
 
   local ack_ids ack_csv since json sql
   ack_ids=$(ack_snapshot)
@@ -484,20 +621,23 @@ poll_once() {
     sql=$(build_sql_full "$ack_csv" "$since")
   fi
 
-  json=$(run_sql "$sql")
+  run_sql "$sql"
 
-  if [[ $SQL_RC -ne 0 || -z "$json" ]]; then
+  # "Did the query RUN?" — not "did it return rows?". Everything below this
+  # point mutates durable state, so a poll that did not demonstrably run must
+  # leave every bit of it alone.
+  if ! sql_reply_is_real; then
     if looks_like_missing_schema; then
       # The database lost the columns under a running poller (rollback applied).
       SCHEMA_MODE="legacy"
       warn_legacy_once
       return 0
     fi
-    if [[ -n "$SQL_ERR" || $SQL_RC -ne 0 ]]; then
-      warn_sql_error
-    fi
+    note_sql_failure
     return 0
   fi
+  note_sql_success
+  json="$SQL_OUT"
 
   # The round trip succeeded, so the ids we passed are now stamped (or were
   # already stamped). Drop them from the ack-file.

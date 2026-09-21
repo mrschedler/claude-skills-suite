@@ -139,11 +139,20 @@ process.stdin.on('end', () => {
   if (wi >= 0) state.watchers[wi] = watcher;
   else state.watchers.push(watcher);
 
-  // (3) stamp_delivered — ONLY the acked ids, and only if still unstamped
+  // (3) stamp_delivered — ONLY the acked ids, and only if still unstamped.
+  //
+  // The routing guard is read OUT OF THE SQL rather than hardcoded here. A fake
+  // that enforced routing unconditionally would be testing itself: the
+  // "stamp-ignores-routing" mutant deletes the predicate from the statement, and
+  // the fake has to actually notice that for the mutant to be able to misbehave.
+  const stampBlock = (sql.match(/stamp_delivered AS \(([\s\S]*?)\n\),/) || [, ''])[1];
+  const stampChecksRouting = /a\.to_target\s*=\s*p\.machine/.test(stampBlock);
+
   const stamped = [];
   for (const a of state.assignments) {
     if (!ackIds.includes(String(a.id))) continue;
     if (a.delivered_at) continue;
+    if (stampChecksRouting && !(a.to_target === machine || a.to_target === 'any')) continue;
     a.delivered_to = machine;
     a.delivered_at = nowIso;
     stamped.push(a.id);

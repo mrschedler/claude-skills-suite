@@ -19,16 +19,45 @@ mail it sent).
 
 ## Setup on YOUR end (copy the row that is you)
 
-The poller keys the inbox by `$INTERAGENT_MACHINE`, else the `machine:` line of
-`/c/dev/.machine-id`. Put the name in the **poller command** — do not assume a
-child process inherits the launcher env.
+**Put BOTH `INTERAGENT_MACHINE` and `INTERAGENT_PROJECT` in the poller command.**
+Do not assume a child process inherits the launcher env, and do not let either be
+inferred:
+
+- **Machine** — watching the wrong name drains *another* session's inbox, and
+  with delivery stamping it would also write `delivered_to` onto mail that was
+  never yours. The poller refuses to stamp a row whose `to_target` is neither its
+  machine nor `any`, which bounds the damage; it does not undo the drain.
+- **Project** — launched as PowerShell → Git-Bash `-lc`, the **login shell starts
+  in `$HOME`**, so an inferred project silently becomes your home directory's
+  basename and the poller filters on a project nobody sends to: a blind watch
+  that looks perfectly healthy. The poller prints one
+  `WARN: interagent project scope inferred as …` line when it can tell, but
+  setting the variable is the fix.
 
 | You are | Launch | Your name | Arm polling with |
 |---|---|---|---|
-| Claude personal | `claude` | `dell-xps` | `/monitor-interagent` → `bash /c/dev/claude-skills-suite/hooks/interagent-monitor-poll.sh 5` |
-| Claude work | `claude-work` | `dell-xps-work` | `/monitor-interagent` → `INTERAGENT_MACHINE=dell-xps-work bash /c/dev/claude-skills-suite/hooks/interagent-monitor-poll.sh 5` |
-| Grok TUI | `grok-agent` | `dell-xps-grok` | `/monitor-interagent` → PowerShell: `$env:INTERAGENT_MACHINE='dell-xps-grok'; & 'C:\Program Files\Git\bin\bash.exe' -lc '/c/dev/claude-skills-suite/hooks/interagent-monitor-poll.sh 5'` |
-| Grok, no TUI | `interagent-dispatch.sh` | `dell-xps-grok` | Do **not** also arm this skill (race on claim). Dispatcher is the watcher. |
+| Claude personal | `claude` | `dell-xps` | `/monitor-interagent` → `INTERAGENT_MACHINE=dell-xps INTERAGENT_PROJECT=<project> bash /c/dev/claude-skills-suite/hooks/interagent-monitor-poll.sh 5` |
+| Claude work | `claude-work` | `dell-xps-work` | `/monitor-interagent` → `INTERAGENT_MACHINE=dell-xps-work INTERAGENT_PROJECT=<project> bash /c/dev/claude-skills-suite/hooks/interagent-monitor-poll.sh 5` |
+| Grok TUI | `grok-agent` | `dell-xps-grok` | `/monitor-interagent` → PowerShell: `$env:INTERAGENT_MACHINE='dell-xps-grok'; $env:INTERAGENT_PROJECT='<project>'; & 'C:\Program Files\Git\bin\bash.exe' -lc '/c/dev/claude-skills-suite/hooks/interagent-monitor-poll.sh 5'` |
+| Grok, no TUI | `interagent-dispatch.sh` | `dell-xps-grok` | Do **not** also arm this skill. The two race on claim and both stamp delivery. Each now refuses while the other is live, naming the other's pid and cmdline. The dispatcher is the watcher. |
+
+`<project>` is the git-root basename of the session the mail is routed to — the
+same string the sender puts in `context_refs`.
+
+## A poller does not run forever
+
+| Ends it | Roughly | What you see |
+|---|---|---|
+| Claude Code Monitor cap | ~30 min | the task stops; no more lines |
+| Monitor max-runtime | ~10 h | same |
+| Session end / `TaskStop` | — | same |
+| Its reader going away | next poll or next write | the poller exits on its own |
+
+*(Runtime caps as reported by the Grok implementer this session; not measured
+here.)* Nothing restarts a poller automatically — **re-arm it**, and on re-arm
+follow stop → verify the pidfile is gone → start. A poller that has stopped looks
+exactly like a quiet inbox, which is why `UNDELIVERED … [watcher: stale Ns]` on
+the *sender's* side is the real signal that a receiver's watch has died.
 
 ## Disarm path (run this first if asked to stop)
 
@@ -91,7 +120,9 @@ interagent"):
 | `INTERAGENT new #id` | `inbox` → route → `claim` if yours → act → `complete` / `send` reply |
 | `DELIVERED` / `CLAIMED` / `COMPLETED` | surface to the user (sender-side progress); no claim |
 | `UNDELIVERED` | surface warning — receiver not acking. `[watcher: none]` = it has no poller at all; `[watcher: stale Ns]` = its poller has missed 3+ of its own intervals; `[watcher: live Ns]` = it is polling but not acking, i.e. an **old** poller |
-| `WARN:` | the schema or the transport is degraded — surface it, do not swallow it |
+| `WARN: … watch is BLIND` | consecutive polls did not RUN (the SSH hop to deepthought drops roughly every 30 min). Nothing was stamped and nothing was marked seen, so no mail was lost — but nothing is being announced either. Surface it; it clears itself with `INTERAGENT watch recovered` |
+| `WARN: … project scope inferred` | the poller is watching a guessed project (probably `$HOME`). Re-arm with `INTERAGENT_PROJECT` set |
+| `WARN:` (other) | the schema or the transport is degraded — surface it, do not swallow it |
 | `INTERAGENT poller alive` | this poller answered another poller's start-up challenge; informational |
 
 For inbox wakes:

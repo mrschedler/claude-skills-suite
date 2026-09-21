@@ -54,9 +54,14 @@ touch "$SEEN" 2>/dev/null
 
 log() { printf '%s %s\n' "$(date -Iseconds 2>/dev/null || date)" "$*" | tee -a "$LOG"; }
 
+# The pidfile holds "<pid> <token>"; everything that uses it wants field 1.
+pidfile_pid() { head -n 1 "$PIDFILE" 2>/dev/null | awk '{print $1}'; }
+
 if [[ "${STATUS:-0}" == "1" ]]; then
-  if [[ -f "$PIDFILE" ]] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
-    echo "running pid=$(cat "$PIDFILE") machine=$INTERAGENT_MACHINE interval_file=$PIDFILE"
+  # The pidfile carries "<pid> <token>" (the token lets the monitor poller tell a
+  # real dispatcher from a recycled pid), so always read the FIRST FIELD.
+  if [[ -f "$PIDFILE" ]] && kill -0 "$(pidfile_pid)" 2>/dev/null; then
+    echo "running pid=$(pidfile_pid) machine=$INTERAGENT_MACHINE interval_file=$PIDFILE"
   else
     echo "not running"
   fi
@@ -66,7 +71,7 @@ fi
 
 if [[ "${STOP:-0}" == "1" ]]; then
   if [[ -f "$PIDFILE" ]]; then
-    pid=$(cat "$PIDFILE" 2>/dev/null || true)
+    pid=$(pidfile_pid)
     if [[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null; then
       kill "$pid" 2>/dev/null || true
       sleep 1
@@ -82,12 +87,41 @@ if [[ "${STOP:-0}" == "1" ]]; then
   exit 0
 fi
 
+# T7: an interactive TUI session may already have armed
+# hooks/interagent-monitor-poll.sh on this same machine inbox. The two keep
+# separate state directories, so neither pidfile sees the other — but they race
+# to claim the same mail and both would stamp delivery. Refuse, naming the pid
+# and the cmdline, so the operator knows exactly what to stop.
+refuse_if_monitor_poller_running() {
+  local dir f pid cmd
+  dir=$(printf '%s' "${LOCALAPPDATA:-${TEMP:-/tmp}}/claude-interagent" | tr '\\' '/')
+  for f in "$dir"/poller-"$INTERAGENT_MACHINE"-*.pid; do
+    [[ -e "$f" ]] || continue
+    pid=$(head -n 1 "$f" 2>/dev/null | awk '{print $1}')
+    [[ -n "$pid" ]] || continue
+    kill -0 "$pid" 2>/dev/null || continue
+    cmd=$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null)
+    case "$cmd" in *interagent-monitor-poll.sh*) ;; *) continue ;; esac
+    echo "interagent-dispatch: refusing — an interactive monitor poller is already watching $INTERAGENT_MACHINE." >&2
+    echo "  pid=$pid  cmdline=$cmd" >&2
+    echo "  pidfile=$f" >&2
+    echo "  They would race on claim and both stamp delivery. Disarm it in that session (/monitor-interagent stop), or do not run this dispatcher." >&2
+    exit 1
+  done
+  return 0
+}
+
+# Applies to --once too: a single pass still LAUNCHES workers, so it races an
+# interactive poller exactly the same way. (--stop and --status have already
+# returned above; they must never be blocked.)
+refuse_if_monitor_poller_running
+
 if [[ "$ONCE" -ne 1 ]]; then
-  if [[ -f "$PIDFILE" ]] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; then
-    echo "already running pid=$(cat "$PIDFILE") — $0 --stop first" >&2
+  if [[ -f "$PIDFILE" ]] && kill -0 "$(pidfile_pid)" 2>/dev/null; then
+    echo "already running pid=$(pidfile_pid) — $0 --stop first" >&2
     exit 1
   fi
-  echo $$ > "$PIDFILE"
+  printf '%s interagent-dispatch:%s\n' "$$" "$INTERAGENT_MACHINE" > "$PIDFILE"
   trap 'rm -f "$PIDFILE"' EXIT
 fi
 

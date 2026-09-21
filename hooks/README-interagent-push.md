@@ -180,6 +180,67 @@ Correctness never depends on either probe; the ack-file gate above is what makes
 an undetected orphan harmless. These facts are asserted by the `probe` arm of the
 suite, so a platform change breaks a test rather than the feature.
 
+### Scope: both names are explicit, and a guessed one is called out
+
+`INTERAGENT_MACHINE` and `INTERAGENT_PROJECT` belong in the **arm command**
+(see the table in `skills/monitor-interagent/SKILL.md`), because both failure
+modes are silent:
+
+- **Wrong machine** — the poller drains another profile's inbox
+  (`dell-xps` / `dell-xps-work` / `dell-xps-grok` are three different mailboxes).
+  Delivery stamping would make that worse, so the stamp CTE re-checks routing:
+  `AND (a.to_target = p.machine OR a.to_target = 'any')`. A poller can never
+  write "delivered to me" onto mail addressed elsewhere, even with a stale
+  ack-file left behind by a renamed profile. It still *drains* — the guard bounds
+  the damage, it does not remove the need to set the name.
+- **Guessed project** — under PowerShell → Git-Bash `-lc` the *login* shell
+  starts in `$HOME`, so an inferred project becomes the home directory's basename
+  and the poller filters on a project nobody sends to, while looking completely
+  healthy. When the inferred value comes from `$HOME` or `/`, the poller says so
+  once — on stderr **and** stdout, because stderr alone is invisible in a
+  Monitor, which is the lesson of the silent-blackout bug above.
+
+### A poll that did not run is not an empty inbox
+
+The SSH hop to deepthought drops roughly every half hour. Treating that as "no
+mail" is how a watch goes quietly blind, so every reply carries a sentinel: a
+successful poll returns a JSON envelope containing `"schema"`, and an empty inbox
+still returns one (`…,"rows":[]`). Anything else — non-zero exit, no output, a
+truncated reply — is a **failed** poll, and `poll_once` returns before anything
+durable is touched: nothing stamped, the ack-file not drained, the `since`
+high-water not advanced, the seen-file not appended to, no alarm or `COMPLETED`
+dedupe advanced. The schema probe likewise stays `unknown` rather than latching a
+guess made from a query that never ran.
+
+Consecutive failures are counted; after `INTERAGENT_BLIND_AFTER` (default 3) the
+session gets **one** line —
+`WARN: interagent watch is BLIND — N consecutive failed polls` — and one
+`INTERAGENT watch recovered` when it clears.
+
+> This required fixing `run_sql`. Called as `json=$(run_sql …)` the whole
+> function runs in a subshell, so its `SQL_RC` / `SQL_ERR` assignments were
+> discarded and the caller saw exit 0 with an empty error for every dropped hop.
+> It now writes to a file and the caller reads `$SQL_OUT`.
+
+### Two live watchers for one machine
+
+Grok's unattended `config/grok/interagent-dispatch.sh` and an interactive
+`interagent-monitor-poll.sh` are both real watchers of the same machine inbox,
+and they keep **separate state directories** — so neither pidfile sees the other,
+while they race to claim the same mail and both stamp it. Each now refuses while
+the other is live, naming the other's pid and cmdline and how to stop it. A dead
+or recycled pid in either pidfile is ignored, so a stale file cannot lock a
+machine out of watching its own inbox.
+
+### Nothing restarts a poller
+
+A poller ends when its Monitor task hits the Claude Code cap (~30 min) or the
+Monitor max-runtime (~10 h), when the session ends, or when its reader goes away.
+*(Those two caps are as reported by the Grok implementer this session; not
+measured here.)* Nothing re-arms it automatically, and a stopped poller looks
+exactly like a quiet inbox from the inside. The signal that a receiver's watch
+has died is on the **sender's** side: `UNDELIVERED … [watcher: stale Ns]`.
+
 ### Schema mismatch is loud
 
 The poller probes for `delivered_to` / `interagent_watchers` once at startup (and

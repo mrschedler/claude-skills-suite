@@ -26,11 +26,6 @@ WRAPPER="$DIR/fake-psql.sh"
 POLLER="${POLLER:-$SUITE/hooks/interagent-monitor-poll.sh}"
 PROCESS="${PROCESS:-$SUITE/hooks/interagent-monitor-process.js}"
 ARM_TIMEOUT="${ARM_TIMEOUT:-150}"
-# MSYS process spawn is slow: one poll (ssh-wrapper + two node starts) costs
-# several seconds, so every "wait for N polls" below is generous on purpose. An
-# arm that samples too early reports a false PASS — that is how the stamp mutant
-# first survived this suite.
-SETTLE="${SETTLE:-12}"
 
 PASS=0
 FAIL=0
@@ -101,6 +96,48 @@ db_field() {           # $1 = id, $2 = field
 
 file_lines() { awk 'NF{n++} END{print n+0}' "$1" 2>/dev/null || echo 0; }
 
+# Wait for a CONDITION, never for a fixed number of seconds. One poll costs an
+# ssh-wrapper plus a node start, so on a loaded Windows box a sleep that is
+# generous today is short tomorrow — and an arm that samples early reports a
+# false PASS. These return non-zero on timeout and let the assertion say so.
+WAIT_MAX="${WAIT_MAX:-45}"
+
+wait_for_file() {      # $1 = path, $2 = seconds
+  local deadline=$((SECONDS + ${2:-$WAIT_MAX}))
+  while (( SECONDS < deadline )); do
+    [[ -s "$1" ]] && return 0
+    sleep 0.5
+  done
+  return 1
+}
+
+wait_for_line() {      # $1 = file, $2 = needle, $3 = seconds
+  local deadline=$((SECONDS + ${3:-$WAIT_MAX}))
+  while (( SECONDS < deadline )); do
+    grep -F -q -- "$2" "$1" 2>/dev/null && return 0
+    sleep 0.5
+  done
+  return 1
+}
+
+wait_until_gone() {    # $1 = pid, $2 = seconds
+  local deadline=$((SECONDS + ${2:-$WAIT_MAX}))
+  while (( SECONDS < deadline )); do
+    kill -0 "$1" 2>/dev/null || return 0
+    sleep 0.5
+  done
+  return 1
+}
+
+wait_for_db() {        # $1 = id, $2 = field, $3 = expected, $4 = seconds
+  local deadline=$((SECONDS + ${4:-$WAIT_MAX}))
+  while (( SECONDS < deadline )); do
+    [[ "$(db_field "$1" "$2")" == "$3" ]] && return 0
+    sleep 0.5
+  done
+  return 1
+}
+
 kill_pidfile() {
   local p; p=$(head -n1 "$PID_F" 2>/dev/null | awk '{print $1}')
   [[ -n "$p" ]] && kill -9 "$p" 2>/dev/null
@@ -165,7 +202,13 @@ arm_no_stamp_on_failed_write() {
   setup_env "rcvr-ns"
   db_write '{"assignments":[{"id":801,"title":"lost","from_agent":"s","to_target":"rcvr-ns","status":"pending","context_refs":[],"created_at":"'"$(iso_now)"'"}],"watchers":[]}'
   ( bash "$POLLER" 1 2>/dev/null | head -n 0 ) & local orph=$!
-  sleep "$SETTLE"
+  # Wait for the poller to take the lock, then for it to DIE on the failed write.
+  # Waiting on its exit is what makes the absence assertions below trustworthy:
+  # every write it was ever going to make has happened by then.
+  wait_for_file "$PID_F" 30
+  local orph_pid; orph_pid=$(head -n1 "$PID_F" 2>/dev/null | awk '{print $1}')
+  assert_eq "no-stamp: the poller with a dead reader exits on its own" "0" \
+    "$([[ -n "$orph_pid" ]] && wait_until_gone "$orph_pid" 40 && echo 0 || echo 1)"
   kill_pidfile; kill "$orph" 2>/dev/null; wait "$orph" 2>/dev/null
 
   assert_eq "no-stamp: delivered_at stays NULL after a failed write" "null" "$(db_field 801 delivered_at)"
@@ -178,13 +221,15 @@ arm_no_stamp_on_failed_write() {
 arm_stamp_next_poll() {
   setup_env "rcvr-sn"
   db_write '{"assignments":[{"id":802,"title":"ok","from_agent":"s","to_target":"rcvr-sn","status":"pending","context_refs":[],"created_at":"'"$(iso_now)"'"}],"watchers":[]}'
-  local out1 out2
-  out1=$(bash "$POLLER" --once 2>/dev/null)
+  local out1 out2 rc1 rc2
+  out1=$(bash "$POLLER" --once 2>"$TMP/p1.err"); rc1=$?
+  assert_eq "stamp: poll 1 actually ran (rc=0)" "0|" "$rc1|$(grep -F 'already running' "$TMP/p1.err" || true)"
   assert_contains "stamp: poll 1 emits the inbox line" "INTERAGENT new #802" "$out1"
   assert_eq "stamp: poll 1 does NOT stamp (the write only just happened)" "null" "$(db_field 802 delivered_at)"
   assert_eq "stamp: poll 1 queues the id for acking" "1" "$(file_lines "$ACK_F")"
 
-  out2=$(bash "$POLLER" --once 2>/dev/null)
+  out2=$(bash "$POLLER" --once 2>"$TMP/p2.err"); rc2=$?
+  assert_eq "stamp: poll 2 actually ran (rc=0)" "0|" "$rc2|$(grep -F 'already running' "$TMP/p2.err" || true)"
   assert_eq "stamp: poll 2 stamps delivered_to" "rcvr-sn" "$(db_field 802 delivered_to)"
   assert_not_contains "stamp: poll 2 does not re-emit the line" "INTERAGENT new #802" "$out2"
   assert_eq "stamp: ack-file is drained after the stamp" "0" "$(file_lines "$ACK_F")"
@@ -196,18 +241,17 @@ arm_orphan_e2e() {
   setup_env "rcvr-e2e"
   db_write '{"assignments":[],"watchers":[]}'
   ( bash "$POLLER" 1 2>/dev/null | head -n 0 ) & local orph=$!
-  sleep 4
+  wait_for_file "$PID_F" 30
   local orph_pid; orph_pid=$(head -n1 "$PID_F" 2>/dev/null | awk '{print $1}')
   assert_eq "orphan-e2e: orphan is alive and holds the lock" "1" "$(pidfile_alive)"
 
   # The live session arms its own poller — it must win the lock.
   local live_out="$TMP/live.out"
   bash "$POLLER" 1 >"$live_out" 2>"$TMP/live.err" & local live=$!
-  sleep "$SETTLE"
+  assert_eq "orphan-e2e: the orphan gives the lock up when challenged" "0" \
+    "$(wait_until_gone "$orph_pid" 40 && echo 0 || echo 1)"
   assert_eq "orphan-e2e: the live poller is running (session is NOT left with zero pollers)" \
-    "1" "$(kill -0 "$live" 2>/dev/null && echo 1 || echo 0)"
-  assert_eq "orphan-e2e: the orphan is gone" "0" \
-    "$(kill -0 "$orph_pid" 2>/dev/null && echo 1 || echo 0)"
+    "1" "$(kill -0 "$live" 2>/dev/null && echo 1 || echo "0 — live poller stderr: [$(tr '\n' ';' < "$TMP/live.err" 2>/dev/null)]")"
 
   # Now the message arrives. Only the live poller should see and ack it.
   node -e '
@@ -216,7 +260,8 @@ arm_orphan_e2e() {
     s.assignments.push({id:901,title:"URGENT",from_agent:"sender",to_target:"rcvr-e2e",
       status:"pending",context_refs:[],created_at:new Date().toISOString()});
     fs.writeFileSync(p,JSON.stringify(s,null,2));'
-  sleep "$SETTLE"
+  wait_for_line "$live_out" "INTERAGENT new #901" 40
+  wait_for_db 901 delivered_to "rcvr-e2e" 40
   kill "$live" 2>/dev/null; kill_pidfile; wait "$live" 2>/dev/null
   kill "$orph" 2>/dev/null; wait "$orph" 2>/dev/null
   # Belt and braces: a surviving orphan spins with a node start per second and
@@ -243,6 +288,10 @@ arm_lock_refuses_live() {
   timeout 15 bash "$POLLER" 2 >"$TMP/b.out" 2>"$TMP/b.err"; rc2=$?
   [[ $rc2 -eq 124 ]] && kill_pidfile
   local alive1; alive1=$(kill -0 "$first" 2>/dev/null && echo 1 || echo 0)
+  # The holder answers the challenge on its next loop tick, which can land after
+  # the newcomer has already given up and exited — so wait for the line, do not
+  # assume it is there the instant the newcomer returns.
+  wait_for_line "$TMP/a.out" "INTERAGENT poller alive" 30
   kill "$first" 2>/dev/null; kill_pidfile; wait "$first" 2>/dev/null
 
   assert_eq "lock: the second poller refuses (rc=1)" "1" "$rc2"
@@ -284,15 +333,14 @@ arm_orphan_idle_exits() {
   db_write '{"assignments":[],"watchers":[]}'
   # Parent lives long enough for the poller to pin its identity, then exits —
   # exactly what an expired Monitor task leaves behind.
-  bash -c "bash '$POLLER' 1 >'$TMP/idle.out' 2>'$TMP/idle.err' & sleep 6" &
+  bash -c "bash '$POLLER' 1 >'$TMP/idle.out' 2>'$TMP/idle.err' & sleep 8" &
   local wrapper=$!
-  sleep 3
+  wait_for_file "$PID_F" 30
   local pid; pid=$(head -n1 "$PID_F" 2>/dev/null | awk '{print $1}')
   assert_eq "idle-orphan: poller started under a live parent" "1" \
     "$([[ -n "$pid" ]] && kill -0 "$pid" 2>/dev/null && echo 1 || echo 0)"
   wait "$wrapper" 2>/dev/null
-  sleep "$SETTLE"
-  local still; still=$(kill -0 "$pid" 2>/dev/null && echo 1 || echo 0)
+  local still; still=$(wait_until_gone "$pid" 40 && echo 0 || echo 1)
   [[ "$still" == "1" ]] && kill -9 "$pid" 2>/dev/null
   assert_eq "idle-orphan: it exits once its reader's parent is gone" "0" "$still"
 }
@@ -391,7 +439,10 @@ arm_old_schema_warns() {
   setup_env "legacy-rcvr" legacy
   db_write '{"assignments":[{"id":950,"title":"still works","from_agent":"s","to_target":"legacy-rcvr","status":"pending","context_refs":[],"created_at":"'"$(iso_now)"'"}],"watchers":[]}'
   bash "$POLLER" 1 >"$TMP/legacy.out" 2>"$TMP/legacy.err" & local p=$!
-  sleep "$SETTLE"
+  wait_for_line "$TMP/legacy.out" "WARN: interagent schema not migrated" 40
+  wait_for_line "$TMP/legacy.out" "INTERAGENT new #950" 40
+  # Let it poll a few more times so "emitted once, not every poll" is a real test.
+  sleep 6
   kill "$p" 2>/dev/null; kill_pidfile; wait "$p" 2>/dev/null
   local out; out=$(cat "$TMP/legacy.out")
 
@@ -431,6 +482,178 @@ EOF
     'psql -U postgres homelab -At -c' "$(cat "$POLLER")"
 }
 
+# T3: launched through a login shell the cwd is $HOME, so an inferred project
+# becomes the home directory's basename and the poller watches nothing, healthily.
+arm_project_scope_guard() {
+  TMP=$(mktemp -d)
+  export LOCALAPPDATA="$TMP"
+  export INTERAGENT_MACHINE="scope-m"
+  export INTERAGENT_FAKE_SCHEMA=full
+  export INTERAGENT_PSQL_WRAPPER="$WRAPPER"
+  export INTERAGENT_FAKE_DB="$TMP/state.json"
+  db_write '{"assignments":[],"watchers":[]}'
+  local out
+  # cwd = $HOME with no INTERAGENT_PROJECT: exactly what `bash -lc` gives you.
+  out=$(cd "$HOME" && env -u INTERAGENT_PROJECT bash "$POLLER" --once 2>&1)
+  assert_contains "scope: an inferred home-directory project is called out" \
+    "interagent project scope inferred as" "$out"
+  assert_contains "scope: it names the remedy" "Set INTERAGENT_PROJECT" "$out"
+
+  export INTERAGENT_PROJECT=proj
+  mkdir -p "$TMP/proj" && cd "$TMP/proj" || exit 1
+  out=$(bash "$POLLER" --once 2>&1)
+  assert_not_contains "scope: an explicit INTERAGENT_PROJECT warns about nothing" \
+    "project scope inferred" "$out"
+}
+
+# T4: a poller started with the wrong INTERAGENT_MACHINE drains another session's
+# inbox. It must at least never write "delivered to me" onto that mail.
+arm_wrong_machine_never_stamps() {
+  setup_env "wrong-m"
+  db_write '{"assignments":[{"id":770,"title":"not yours","from_agent":"s","to_target":"someone-else","status":"pending","context_refs":[],"created_at":"'"$(iso_now)"'"}],"watchers":[]}'
+  mkdir -p "$STATE"
+  # An ack-file carried over from a renamed profile: the id is queued for
+  # stamping even though the row is addressed to somebody else.
+  printf '770\n' > "$ACK_F"
+  bash "$POLLER" --once >/dev/null 2>&1
+  assert_eq "wrong-machine: a row addressed elsewhere is never stamped" "null" "$(db_field 770 delivered_to)"
+  assert_eq "wrong-machine: delivered_at stays NULL too" "null" "$(db_field 770 delivered_at)"
+
+  # Control: the same flow DOES stamp a row that really is ours.
+  setup_env "right-m"
+  db_write '{"assignments":[{"id":771,"title":"yours","from_agent":"s","to_target":"right-m","status":"pending","context_refs":[],"created_at":"'"$(iso_now)"'"}],"watchers":[]}'
+  mkdir -p "$STATE"; printf '771\n' > "$ACK_F"
+  bash "$POLLER" --once >/dev/null 2>&1
+  assert_eq "wrong-machine: control — a row addressed to us IS stamped" "right-m" "$(db_field 771 delivered_to)"
+}
+
+# T5: the SSH hop to deepthought drops roughly every 30 min. A failed query must
+# never be mistaken for an empty inbox.
+arm_hop_failure_is_not_empty_poll() {
+  local mark
+
+  # $1 = label, $2 = machine, $3 = wrapper body. Fresh state each time, with an
+  # id queued for stamping and a known since/seen, so "nothing durable moved" is
+  # checkable rather than vacuous.
+  hop_case() {
+    local label="$1" m="$2" body="$3"
+    setup_env "$m"
+    mark=$(iso_now)
+    db_write '{"assignments":[{"id":880,"title":"waiting","from_agent":"'"$m"'","to_target":"'"$m"'","status":"pending","context_refs":[],"created_at":"'"$(iso_ago 90)"'","delivered_at":null}],"watchers":[]}'
+    mkdir -p "$STATE"
+    printf '880\n' > "$ACK_F"
+    printf '%s' "$mark" > "$STATE/since-${m}-proj.txt"
+    printf 'PRE-EXISTING\n' > "$SEEN_F"
+    printf '%s\n' "$body" > "$TMP/hop.sh"
+    export INTERAGENT_PSQL_WRAPPER="$TMP/hop.sh"
+    local out; out=$(bash "$POLLER" --once 2>"$TMP/hop.err")
+
+    assert_not_contains "hop[$label]: no inbox lines" "INTERAGENT new" "$out"
+    assert_contains "hop[$label]: the failure is reported" "interagent poll failed" "$(cat "$TMP/hop.err")"
+    assert_eq "hop[$label]: the ack-file is NOT drained" "880" "$(tr -d '\n\r' < "$ACK_F")"
+    assert_eq "hop[$label]: the since high-water is NOT advanced" "$mark" "$(cat "$STATE/since-${m}-proj.txt")"
+    assert_eq "hop[$label]: the seen-file is NOT appended to" "1" "$(file_lines "$SEEN_F")"
+    assert_eq "hop[$label]: nothing is stamped" "null" "$(db_field 880 delivered_at)"
+  }
+
+  # (a) the hop is down for everything, including the schema probe.
+  hop_case "hop down" "hop-a" 'cat > /dev/null
+echo "ssh: connect to host deepthought port 22: Connection timed out" >&2
+exit 255'
+
+  # (b) the probe answers, then the hop drops under the real query — this is the
+  #     case the sentinel check exists for, and the one a poller meets after
+  #     ~30 min of healthy polling.
+  hop_case "drops after the probe" "hop-b" 'in=$(cat)
+case "$in" in
+  *information_schema.columns*) echo full ;;
+  *) echo "ssh: connection closed by remote host" >&2; exit 255 ;;
+esac'
+
+  # (c) exit 0 with output that is not an envelope: a truncated or interleaved
+  #     reply must not be mistaken for an empty inbox either.
+  hop_case "truncated reply, exit 0" "hop-c" 'in=$(cat)
+case "$in" in
+  *information_schema.columns*) echo full ;;
+  *) echo "psql: server closed the connection unexpectedly" ;;
+esac'
+
+  # And after BLIND_AFTER consecutive failures the session is told, once.
+  setup_env "hop-m"
+  db_write '{"assignments":[],"watchers":[]}'
+  cat > "$TMP/deadhop.sh" <<'EOF'
+cat > /dev/null
+echo "ssh: connect to host deepthought port 22: Connection timed out" >&2
+exit 255
+EOF
+  export INTERAGENT_PSQL_WRAPPER="$TMP/deadhop.sh"
+  export INTERAGENT_BLIND_AFTER=2
+  bash "$POLLER" 1 >"$TMP/blind.out" 2>/dev/null & local p=$!
+  wait_for_line "$TMP/blind.out" "watch is BLIND" 40
+  sleep 5    # keep polling, so "told once" is a real test
+  kill "$p" 2>/dev/null; kill_pidfile; wait "$p" 2>/dev/null
+  assert_contains "hop: the session is told its watch is BLIND" \
+    "WARN: interagent watch is BLIND" "$(cat "$TMP/blind.out")"
+  assert_eq "hop: told once, not every poll" "1" \
+    "$(grep -c 'watch is BLIND' "$TMP/blind.out" || true)"
+}
+
+# T7: the Grok dispatcher and an interactive poller are both live watchers of one
+# machine inbox, with separate state dirs. Each must refuse while the other runs.
+arm_dispatcher_tui_conflict() {
+  setup_env "pair-m"
+  db_write '{"assignments":[],"watchers":[]}'
+  mkdir -p "$TMP/grok-interagent"
+  # A live process whose /proc/<pid>/cmdline genuinely names the dispatcher, so
+  # the identity check has something true to find. A stub rather than the real
+  # script: production code does not get a test-only flag.
+  printf 'sleep 45\n' > "$TMP/interagent-dispatch.sh"
+  bash "$TMP/interagent-dispatch.sh" &
+  local fake=$!
+  sleep 1
+  printf '%s interagent-dispatch:pair-m\n' "$fake" > "$TMP/grok-interagent/dispatch.pid"
+  local out rc
+  out=$(bash "$POLLER" --once 2>&1); rc=$?
+  kill "$fake" 2>/dev/null; wait "$fake" 2>/dev/null
+
+  assert_eq "pair: the poller refuses while the dispatcher is live (rc=1)" "1" "$rc"
+  assert_contains "pair: it names the dispatcher" "Grok dispatcher is already watching" "$out"
+  assert_contains "pair: it prints the pid" "pid=$fake" "$out"
+  assert_contains "pair: it prints the cmdline" "interagent-dispatch.sh" "$out"
+  assert_contains "pair: it says how to resolve it" "--stop" "$out"
+
+  # A stale dispatch.pid over a dead pid must NOT lock the poller out.
+  printf '999999 interagent-dispatch:pair-m\n' > "$TMP/grok-interagent/dispatch.pid"
+  out=$(bash "$POLLER" --once 2>&1); rc=$?
+  assert_eq "pair: a dead dispatcher pid does not lock the poller out" "0" "$rc"
+
+  # The other direction: the real dispatcher must refuse while an interactive
+  # poller holds its pidfile.
+  rm -f "$TMP/grok-interagent/dispatch.pid"
+  mkdir -p "$STATE"
+  printf 'sleep 45\n' > "$TMP/interagent-monitor-poll.sh"
+  bash "$TMP/interagent-monitor-poll.sh" & local stub=$!
+  sleep 1
+  printf '%s interagent-monitor-poll:pair-m:proj\n' "$stub" > "$PID_F"
+  out=$(LOCALAPPDATA="$TMP" INTERAGENT_MACHINE=pair-m \
+        bash "$SUITE/config/grok/interagent-dispatch.sh" 5 2>&1); rc=$?
+  assert_eq "pair: the dispatcher refuses while a poller is live (rc=1)" "1" "$rc"
+  assert_contains "pair: it names the poller" "interactive monitor poller is already watching" "$out"
+  assert_contains "pair: it prints the poller's pid" "pid=$stub" "$out"
+
+  # A recycled pid is not a poller: a foreign live pid must not block it.
+  printf 'sleep 45\n' > "$TMP/foreign.sh"
+  bash "$TMP/foreign.sh" & local foreign=$!
+  sleep 1
+  printf '%s interagent-monitor-poll:pair-m:proj\n' "$foreign" > "$PID_F"
+  out=$(LOCALAPPDATA="$TMP" INTERAGENT_MACHINE=pair-m \
+        bash "$SUITE/config/grok/interagent-dispatch.sh" --status 2>&1) || true
+  assert_not_contains "pair: a foreign pid in the poller pidfile is ignored" \
+    "interactive monitor poller is already watching" "$out"
+  kill "$stub" "$foreign" 2>/dev/null
+  rm -f "$PID_F"
+}
+
 # Proves the assertion helpers can actually fail.
 arm_known_bad() {
   local before=$FAIL
@@ -447,7 +670,8 @@ arm_known_bad() {
 ARMS="probe no_stamp_on_failed_write stamp_next_poll orphan_e2e lock_refuses_live \
 lock_reaps_foreign lock_reaps_dead orphan_idle_exits sender_delivered undelivered_alarm \
 watcher_stale no_alarm_when_delivered completed_once dedupe old_schema_warns injection \
-since_is_server_clock known_bad"
+since_is_server_clock project_scope_guard wrong_machine_never_stamps \
+hop_failure_is_not_empty_poll dispatcher_tui_conflict known_bad"
 
 # ── single-arm mode ──────────────────────────────────────────────────────────
 if [[ "${1:-}" == "--list" ]]; then
@@ -460,6 +684,12 @@ if [[ "${1:-}" == "--arm" ]]; then
   if ! declare -F "arm_$arm" >/dev/null; then
     echo "no such arm: $arm" >&2; exit 2
   fi
+  # No arm may leak a live poller into the next one. A leaked loop poller spins a
+  # node start per second (slowing everything after it) and its pid can be
+  # recycled onto a later arm's pidfile, where the identity check correctly sees
+  # "a genuine live poller" and refuses that arm's poll. That is a real property
+  # of the lock, so the fix belongs here, not in the poller.
+  trap 'p=$(jobs -p 2>/dev/null); [[ -n "$p" ]] && kill $p 2>/dev/null; exit' EXIT
   "arm_$arm"
   echo "  [$arm] $PASS passed, $FAIL failed"
   [[ $FAIL -gt 0 ]] && exit 1
@@ -494,6 +724,12 @@ MUTANTS=(
   "watcher-never-goes-stale|watcher_stale|process|s/^    ? w.stale\$/    ? false/"
   "reader-gone-check-removed|orphan_idle_exits|poller|s/^  if \[\[ \"\$PPID_WATCH\" == \"1\" \]\]; then\$/  if false; then/"
   "new-poller-on-old-schema-silent|old_schema_warns|poller|s/^  say \"\$msg\"\$/  :/"
+  "hop-failure-treated-as-empty-poll|hop_failure_is_not_empty_poll|poller|s/^  if ! sql_reply_is_real; then\$/  if false; then/"
+  # Range-addressed so it touches ONLY the stamp CTE's routing guard, not the
+  # identical predicate in the inbox CTEs. "." stands in for the quote character
+  # so the expression itself needs no nested quoting.
+  "stamp-ignores-routing|wrong_machine_never_stamps|poller|/^stamp_delivered AS (/,/^  RETURNING a.id\$/ s/^    AND (a.to_target = p.machine OR a.to_target = .any.)\$/    AND true/"
+  "project-scope-guess-is-silent|project_scope_guard|poller|s/^warn_project_once() {\$/warn_project_once() { return 0;/"
 )
 
 echo
