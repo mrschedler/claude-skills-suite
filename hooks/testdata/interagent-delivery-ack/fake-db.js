@@ -34,6 +34,15 @@ process.stdin.on('end', () => {
     process.exit(1);
   }
 
+  // A HALF-DELIVERED REPLY WITH EXIT 0 — the nastiest hop failure, because
+  // every status code is clean and the body is non-empty. Only parsing the
+  // reply catches this one.
+  const truncFile = process.env.INTERAGENT_FAKE_TRUNC_FILE;
+  if (truncFile && fs.existsSync(truncFile)) {
+    process.stdout.write('{"now":"2026-09-21T00:00:00Z","rows":[{"event":"inb');
+    process.exit(0);
+  }
+
   // psql ignores `--` comments, and so must we: the poller's SQL carries a
   // comment that names the predicates below, and matching on comment text
   // rather than on the statement would let a reverted predicate pass.

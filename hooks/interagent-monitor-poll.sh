@@ -255,11 +255,9 @@ poll_once() {
   local hop_bad=0
   [[ $rc -ne 0 || -z "$out" ]] && hop_bad=1
   if [[ $hop_bad -eq 1 ]]; then
-    hop_failed "$rc"
+    hop_failed "$rc" ""
     return 1
   fi
-
-  hop_recovered
 
   printf '%s' "$out" | \
     MACHINE="$MACHINE" PROJECT="$PROJECT" PROC_DIR="$PROC_DIR" \
@@ -268,19 +266,30 @@ poll_once() {
   rc=$?
   [[ $rc -eq 9 ]] && return 9        # process.js saw EPIPE: the reader is gone
   if [[ $rc -ne 0 ]]; then
-    hop_failed "$rc"                 # malformed payload — same "never silent" rule
+    # Bytes arrived but did not parse: a truncated ssh stream, or a psql notice
+    # in the body. The poll delivered NOTHING, so this is a failure and NOT a
+    # recovery — declaring recovery here (as an earlier draft did, by calling
+    # hop_recovered before the payload was validated) turns a persistently
+    # truncated hop into a WARN/recovered flap, two lines every poll, with the
+    # rate limit reset each time.
+    hop_failed "$rc" "malformed reply (${#out} bytes, did not parse)"
     return 1
   fi
+
+  # Only now: a reply arrived, parsed, and was acted on.
+  hop_recovered
   return 0
 }
 
 hop_failed() {
-  local rc="$1" detail
+  local rc="$1" detail="${2:-}"
   ERR_STREAK=$((ERR_STREAK + 1))
   if [[ $LAST_ERR_AT -lt 0 ]] || (( SECONDS - LAST_ERR_AT >= ERR_QUIET_S )); then
     LAST_ERR_AT=$SECONDS
-    detail=$(tr -d '\r' < "$ERR_FILE" 2>/dev/null | grep -v '^[[:space:]]*$' | head -1)
-    [[ -z "$detail" ]] && detail="no output (rc=$rc)"
+    if [[ -z "$detail" ]]; then
+      detail=$(tr -d '\r' < "$ERR_FILE" 2>/dev/null | grep -v '^[[:space:]]*$' | head -1)
+      [[ -z "$detail" ]] && detail="no output (rc=$rc)"
+    fi
     say "INTERAGENT WARN: poll failed (${ERR_STREAK}x) - $detail  [inbox NOT checked; nothing marked seen]"
   fi
 }

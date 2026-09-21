@@ -198,6 +198,34 @@ arm_hop_failure_warns() {
   teardown
 }
 
+# ARM: a reply that arrives half-written with a CLEAN exit status. rc is 0 and
+# the body is non-empty, so only parsing it catches the failure. It must warn
+# like any other dropped hop, deliver nothing, and — the part that bit an
+# earlier draft of this file — must NOT be announced as a recovery, which
+# flapped WARN/recovered twice a poll forever and reset the rate limit each time.
+arm_hop_truncated_reply() {
+  setup_env rcvr
+  export INTERAGENT_FAKE_TRUNC_FILE="$TMP/hop-trunc"
+  : > "$INTERAGENT_FAKE_TRUNC_FILE"
+  db_write '{"assignments":[{"id":901,"title":"survives a half reply","from_agent":"sender","to_target":"rcvr","status":"pending","ttl_hours":24,"context_refs":[],"created_at":"'"$(iso_shift 0)"'"}]}'
+
+  INTERAGENT_MAX_LIFETIME_S=26 bash "$POLLER" 1 >"$TMP/tr.out" 2>"$TMP/tr.err" & local P=$!
+  sleep 10
+  local during; during=$(cat "$TMP/tr.out")
+  assert_contains     "a truncated reply warns"            "INTERAGENT WARN: poll failed" "$during"
+  assert_contains     "  ...naming what was wrong with it" "malformed reply"              "$during"
+  assert_eq           "  ...once, not once per poll"       "1" "$(count_of "INTERAGENT WARN: poll failed" "$during")"
+  assert_not_contains "a reply that never parsed is NOT a recovery" "INTERAGENT recovered" "$during"
+  assert_not_contains "nothing is delivered from a half reply"      "INTERAGENT new #901"  "$during"
+
+  rm -f "$INTERAGENT_FAKE_TRUNC_FILE"
+  wait $P
+  local after; after=$(cat "$TMP/tr.out")
+  assert_contains "a whole reply IS a recovery"           "INTERAGENT recovered" "$after"
+  assert_contains "the message survived the half replies" "INTERAGENT new #901"  "$after"
+  teardown
+}
+
 # ARM: a re-armed poller re-announces what is still unclaimed, and goes quiet
 # once the agent has claimed it. A claim that predates the poller is history.
 arm_rearm_reannounces() {
@@ -361,7 +389,8 @@ arm_known_bad() {
   fi
 }
 
-ARMS="orphan_no_steal wrong_name hop_failure_warns rearm_reannounces broadcast_24h \
+ARMS="orphan_no_steal wrong_name hop_failure_warns hop_truncated_reply \
+rearm_reannounces broadcast_24h \
 durable_todo_ttl_null_is_emitted claimed_completed_once alarms_5_15_60 \
 no_alarm_when_claimed injection_refused lifetime_exit known_bad"
 
@@ -411,6 +440,7 @@ MUTANTS=(
   "local-clock-used-for-age|alarms_5_15_60|process|s@^  const nowMs = .*@  const nowMs = Date.now();@"
   "broadcast-exempt-removed|broadcast_24h|process|s@^      if (isBroadcast .*@      if (false) continue;@"
   "durable-todo-ttl-guard-reverted|durable_todo_ttl_null_is_emitted|poller|s@^    AND (a.ttl_hours IS NULL OR @    AND (@"
+  "recovery-claimed-before-the-reply-parses|hop_truncated_reply|poller|s@^    hop_failed \"\$rc\" \"malformed.*@    hop_recovered@"
 )
 
 echo
