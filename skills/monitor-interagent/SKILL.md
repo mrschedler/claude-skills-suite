@@ -25,11 +25,17 @@ interagent"):
 
 ## Arm path
 
-1. **Resolve scope** (so you report it accurately and don't double-arm):
-   - `MACHINE` = `machine:` line from `/c/dev/.machine-id`.
+1. **Resolve scope** and pass it explicitly:
+   - `MACHINE` = `machine:` line from `/c/dev/.machine-id` (see the table below).
    - `PROJECT` = `git rev-parse --show-toplevel` basename, else cwd basename.
-   - The poll script auto-detects both — you do NOT pass them as args. You resolve
-     them only to tell the user what scope is being watched.
+   - **Check the PROJECT you resolved is really this project.** `$HOME`
+     (`C:/Users/matts`) is itself a git repo root, so from any directory under it
+     that is not its own repo — Git-Bash `/tmp` maps in there too — the git-root
+     inference returns `matts` and the session silently watches the wrong scope.
+     If that is what you got, use the real project name.
+   - The script can infer both, but pass them anyway: it announces what it resolved
+     (`INTERAGENT watching machine=… project=… source=…`) as its first line, and an
+     explicit `INTERAGENT_PROJECT` overrides the inference outright.
 
 2. **Don't double-arm.** `TaskList` first. If a Monitor task with description
    `interagent inbox (project=<this project>)` is already running, tell the user it's
@@ -42,9 +48,14 @@ interagent"):
    Monitor {
      description: "interagent inbox (project=<PROJECT>)",
      persistent: true,
-     command: "INTERAGENT_MACHINE=<MACHINE> INTERAGENT_MAX_LIFETIME_S=2100 bash /c/dev/claude-skills-suite/hooks/interagent-monitor-poll.sh <interval>"
+     command: "INTERAGENT_MACHINE=<MACHINE> INTERAGENT_PROJECT=<PROJECT> INTERAGENT_MAX_LIFETIME_S=2100 bash /c/dev/claude-skills-suite/hooks/interagent-monitor-poll.sh <interval>"
    }
    ```
+   The poller's first stdout line reports the scope it actually resolved. **Read
+   it.** If it does not say the project you meant, disarm and re-arm with the
+   right `INTERAGENT_PROJECT` — a poller on the wrong scope looks perfectly
+   healthy and delivers nothing.
+
    **Spell out `INTERAGENT_MACHINE` for every Claude row, the personal `claude`
    session included** — there it merely repeats the `.machine-id` default, and that
    is the point: an unnamed poller is indistinguishable from any other in a process

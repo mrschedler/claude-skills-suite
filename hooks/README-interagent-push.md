@@ -189,12 +189,31 @@ parent's identity pinned by its cmdline against MSYS pid reuse), plus
 `INTERAGENT_MAX_LIFETIME_S`. Neither is load-bearing — correctness comes from
 the state being private.
 
+Two rules keep that state honest. The directory is created fresh per **start**
+(`mktemp -d`, O_EXCL), never reused, because MSYS recycles small pids and an
+inherited seen-file would silently swallow unclaimed mail. And leftovers are
+reaped by **dead owner**, never by age: a directory's mtime does not move when
+files inside it are written, so an age sweep deletes the state of a live poller
+that has merely been quiet — taking its `poll.sql` with it, after which it warns
+forever and delivers nothing.
+
+### The scope is announced at start
+
+The first line on stdout — and the same line on stderr — is
+`INTERAGENT watching machine=<m> project=<p> (interval Ns, source=...)`.
+`source` is `INTERAGENT_PROJECT`, `git-root` or `cwd`. This exists because
+`$HOME` on this machine is itself a git repo root: from any non-repo directory
+under it, Git-Bash `/tmp` included, `git rev-parse --show-toplevel` resolves
+PROJECT to `matts` and the session watches the wrong scope in silence. Set
+`INTERAGENT_PROJECT` explicitly; it overrides the inference outright.
+
 ### Environment
 
 | Variable | Default | Why |
 |---|---|---|
 | `INTERAGENT_MACHINE` | `machine:` from `/c/dev/.machine-id` | inbox name. Must match `^[A-Za-z0-9._-]+$` or the poller refuses to start (rc 2). |
-| `INTERAGENT_PROJECT` | git-root / cwd basename | project tag. Same identifier rule. |
+| `INTERAGENT_PROJECT` | git-root / cwd basename | project tag; same identifier rule. **Set it explicitly** — see above. Overrides the inference outright. |
+| `INTERAGENT_HOP_TIMEOUT_S` | `10` | hard kill for a hop that connects and then hangs; `ConnectTimeout` bounds only the TCP connect. A killed hop is a failure, never an empty poll. |
 | `INTERAGENT_MAX_LIFETIME_S` | `0` (unlimited) | **2100 for Claude Code**: the Monitor tool caps at 30 min and leaves its poller running. At expiry the poller prints one line and exits 0. |
 | `INTERAGENT_SENT_HOURS` | `72` | sender-side window. |
 | `INTERAGENT_UNCLAIMED_MINS` | `5,15,60` | alarm thresholds. |

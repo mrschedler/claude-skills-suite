@@ -95,10 +95,19 @@ if [[ -z "$MACHINE" ]]; then
 fi
 MACHINE="${MACHINE:-unknown}"
 
+# INTERAGENT_PROJECT wins outright over inference: on this machine $HOME is
+# itself a git repo root, so the git-root inference silently resolves to the
+# home folder's name from any non-repo directory under it (Git-Bash /tmp
+# included). The resolved value and where it came from are announced at start.
 PROJECT="${INTERAGENT_PROJECT:-}"
+PROJECT_SOURCE="INTERAGENT_PROJECT"
 if [[ -z "$PROJECT" ]]; then
   GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
-  if [[ -n "$GIT_ROOT" ]]; then PROJECT=$(basename "$GIT_ROOT"); else PROJECT=$(basename "$(pwd)"); fi
+  if [[ -n "$GIT_ROOT" ]]; then
+    PROJECT=$(basename "$GIT_ROOT"); PROJECT_SOURCE="git-root"
+  else
+    PROJECT=$(basename "$(pwd)"); PROJECT_SOURCE="cwd"
+  fi
 fi
 
 # The SQL travels on psql's stdin, so no remote shell ever sees these values —
@@ -124,6 +133,17 @@ MAX_LIFETIME_S="${INTERAGENT_MAX_LIFETIME_S:-0}"
 [[ "$ERR_QUIET_S"     =~ ^[0-9]+$ ]] || ERR_QUIET_S=600
 [[ "$MAX_LIFETIME_S"  =~ ^[0-9]+$ ]] || MAX_LIFETIME_S=0
 
+HOP_TIMEOUT_S="${INTERAGENT_HOP_TIMEOUT_S:-10}"
+[[ "$HOP_TIMEOUT_S"   =~ ^[0-9]+$ ]] || HOP_TIMEOUT_S=10
+
+# ── stdout ───────────────────────────────────────────────────────────────────
+# Operational lines go to STDOUT: only stdout becomes a Monitor chat event, and
+# a warning the agent cannot see is not a warning. A failed write means the
+# reader is gone, which is a reason to exit.
+say() {
+  ( trap '' PIPE; printf '%s\n' "$1" >&1 ) 2>/dev/null
+}
+
 # ── per-process state ────────────────────────────────────────────────────────
 STATE_ROOT="${INTERAGENT_STATE_DIR:-}"
 if [[ -z "$STATE_ROOT" ]]; then
@@ -131,13 +151,48 @@ if [[ -z "$STATE_ROOT" ]]; then
 fi
 mkdir -p "$STATE_ROOT" 2>/dev/null
 
-# Sweep per-process dirs left behind by pollers that were SIGKILLed (Monitor
-# teardown) and never ran their EXIT trap. A day is well past any session.
-find "$STATE_ROOT" -maxdepth 1 -type d -name 'proc-*' -mtime +0 -exec rm -rf {} + 2>/dev/null
-
 MAIN_PID=$$
-PROC_DIR="$STATE_ROOT/proc-${MACHINE}-${PROJECT}-${MAIN_PID}"
-mkdir -p "$PROC_DIR" 2>/dev/null
+START_TOKEN="$(date +%s)-${RANDOM}"
+
+# Is <pid> a live process that is genuinely a poller? MSYS recycles small pids,
+# so liveness alone is not identity; /proc/<pid>/cmdline is readable here.
+pid_is_poller() {
+  local pid="$1" cmd
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+  kill -0 "$pid" 2>/dev/null || return 1
+  cmd=$(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null)
+  [[ "$cmd" == *interagent-monitor-poll.sh* ]]
+}
+
+# Reap state dirs whose OWNER IS GONE. NEVER by age: a directory's mtime does
+# not move when files INSIDE it are written, so an age sweep deletes the state
+# of a perfectly live poller that has simply been quiet — and since its
+# poll.sql goes with it, that poller then warns forever and never delivers
+# again. One new poller would blind an idle watcher after a quiet day.
+sweep_dead_proc_dirs() {
+  local d pid
+  for d in "$STATE_ROOT"/proc-*; do
+    [[ -d "$d" ]] || continue
+    if [[ -f "$d/owner" ]]; then
+      pid=$(awk '{print $1}' "$d/owner" 2>/dev/null)
+      pid_is_poller "$pid" && continue          # live poller — hands off
+      rm -rf "$d" 2>/dev/null
+    else
+      # No owner file: half-created by a poller starting right now, or left by
+      # an older build. Only age can judge it, and only generously.
+      find "$d" -maxdepth 0 -type d -mtime +0 -exec rm -rf {} + 2>/dev/null
+    fi
+  done
+}
+sweep_dead_proc_dirs
+
+# A FRESH, EMPTY directory per START. mktemp -d is O_EXCL, so state from a
+# previous run — or from a recycled pid — can never be inherited: a pre-seeded
+# seen-file would silently swallow unclaimed mail.
+new_proc_dir() {
+  mktemp -d "$STATE_ROOT/proc-${MACHINE}-${PROJECT}-${MAIN_PID}-XXXXXX"
+}
+PROC_DIR=$(new_proc_dir)
 
 cleanup_proc_dir() {
   # MSYS bash runs an inherited EXIT trap when a command-substitution subshell
@@ -148,14 +203,6 @@ cleanup_proc_dir() {
   return 0
 }
 trap cleanup_proc_dir EXIT
-
-# ── stdout ───────────────────────────────────────────────────────────────────
-# Operational lines go to STDOUT: only stdout becomes a Monitor chat event, and
-# a warning the agent cannot see is not a warning. A failed write means the
-# reader is gone, which is a reason to exit.
-say() {
-  ( trap '' PIPE; printf '%s\n' "$1" >&1 ) 2>/dev/null
-}
 
 # ── parent watch ─────────────────────────────────────────────────────────────
 PPID0="$PPID"
@@ -183,6 +230,9 @@ M_SQL=$(sql_quote "$MACHINE")
 P_SQL=$(sql_quote "$PROJECT")
 
 SQL_FILE="$PROC_DIR/poll.sql"
+ERR_FILE="$PROC_DIR/psql.err"
+
+write_sql_file() {
 cat > "$SQL_FILE" <<EOF
 WITH params AS (
   SELECT '${M_SQL}'::text AS machine,
@@ -231,8 +281,24 @@ SELECT json_build_object(
        )
 FROM (SELECT * FROM inbox UNION ALL SELECT * FROM sent) t;
 EOF
+}
 
-ERR_FILE="$PROC_DIR/psql.err"
+# Re-establish our own state after any loss. A poller whose directory is gone
+# (swept by an older build, or by a human tidying %LOCALAPPDATA%) must carry on
+# with fresh state, not warn forever because its poll.sql vanished.
+ensure_proc_dir() {
+  if [[ ! -d "$PROC_DIR" ]]; then
+    PROC_DIR=$(new_proc_dir) || return 1
+    SQL_FILE="$PROC_DIR/poll.sql"
+    ERR_FILE="$PROC_DIR/psql.err"
+    say "INTERAGENT WARN: state dir vanished - recreated (dedupe state lost; still-unclaimed mail will be re-announced)"
+  fi
+  printf '%s %s\n' "$MAIN_PID" "$START_TOKEN" > "$PROC_DIR/owner" 2>/dev/null
+  [[ -s "$SQL_FILE" ]] || write_sql_file
+  touch "$PROC_DIR" 2>/dev/null       # diagnostics only; nothing judges by age
+  return 0
+}
+ensure_proc_dir
 
 # ── poll ─────────────────────────────────────────────────────────────────────
 ERR_STREAK=0
@@ -241,13 +307,24 @@ LAST_ERR_AT=-1          # -1, not 0: at SECONDS=0 the FIRST failure must warn
 # 0 = a payload was handled, 1 = hop failure, 9 = stdout is gone
 poll_once() {
   local out rc
+  ensure_proc_dir
   : > "$ERR_FILE"
+  # A HARD timeout around the hop. ConnectTimeout only bounds the TCP connect:
+  # a hop that connects and then hangs (server wedged, container paused) would
+  # otherwise block the loop indefinitely, outliving even MAX_LIFETIME_S. A
+  # killed hop is a HOP FAILURE, never an empty poll.
   if [[ -n "${INTERAGENT_PSQL_WRAPPER:-}" ]]; then
-    out=$(bash "$INTERAGENT_PSQL_WRAPPER" < "$SQL_FILE" 2>"$ERR_FILE"); rc=$?
+    out=$(timeout "$HOP_TIMEOUT_S" bash "$INTERAGENT_PSQL_WRAPPER" < "$SQL_FILE" 2>"$ERR_FILE"); rc=$?
   else
-    out=$(ssh -o ConnectTimeout=8 -o BatchMode=yes deepthought \
+    out=$(timeout "$HOP_TIMEOUT_S" \
+          ssh -o ConnectTimeout=8 -o BatchMode=yes \
+              -o ServerAliveInterval=3 -o ServerAliveCountMax=2 deepthought \
             "docker exec -i pgvector psql -U postgres homelab -At -f -" \
             < "$SQL_FILE" 2>"$ERR_FILE"); rc=$?
+  fi
+  if [[ $rc -eq 124 ]]; then
+    hop_failed "$rc" "hop hung - killed after ${HOP_TIMEOUT_S}s"
+    return 1
   fi
 
   # An empty body is a FAILURE, not an empty inbox: the query always returns
@@ -301,6 +378,17 @@ hop_recovered() {
     LAST_ERR_AT=-1
   fi
 }
+
+# ── announce the scope ───────────────────────────────────────────────────────
+# On this machine $HOME is itself a git repo root, so `git rev-parse
+# --show-toplevel` from ANY directory under it — Git-Bash /tmp included —
+# infers PROJECT as the home folder's name. That is silent and wrong. The cure
+# is not to redesign the inference but to make the resolved scope impossible to
+# miss: once on stderr, and once on STDOUT so it lands in the Monitor as the
+# first chat event. INTERAGENT_PROJECT overrides the inference outright.
+BANNER="INTERAGENT watching machine=${MACHINE} project=${PROJECT} (interval ${INTERVAL}s, source=${PROJECT_SOURCE})"
+echo "$BANNER" >&2
+say "$BANNER"
 
 if [[ "$ONCE" -eq 1 ]]; then
   poll_once

@@ -154,7 +154,7 @@ arm_orphan_no_steal() {
   assert_eq "live poller removed its own state dir (the orphan's remains)" "1" \
     "$(ls -d "$STATE"/proc-* 2>/dev/null | wc -l | tr -d ' ')"
 
-  local orph_pid="${orph_dir##*-}"
+  local orph_pid; orph_pid=$(awk '{print $1}' "$orph_dir/owner" 2>/dev/null)
   [[ "$orph_pid" =~ ^[0-9]+$ ]] && kill -9 "$orph_pid" 2>/dev/null
   kill -9 $ORPH 2>/dev/null
   teardown
@@ -167,11 +167,135 @@ arm_wrong_name() {
   local md5_before; md5_before=$(db_md5)
 
   INTERAGENT_MACHINE=other-box bash "$POLLER" --once >"$TMP/wrong.out" 2>"$TMP/wrong.err"
-  assert_eq "wrong-name poller emits nothing" "" "$(cat "$TMP/wrong.out")"
-  assert_eq "wrong-name poller changes nothing" "$md5_before" "$(db_md5)"
+  local wrong; wrong=$(cat "$TMP/wrong.out")
+  assert_not_contains "wrong-name poller delivers nothing"   "INTERAGENT new"   "$wrong"
+  assert_contains     "  ...but says whose inbox it watches" "machine=other-box" "$wrong"
+  assert_eq           "wrong-name poller changes nothing"    "$md5_before" "$(db_md5)"
 
   # positive control: the right name does see it
   assert_contains "right-name poller does see it" "INTERAGENT new #901" "$(poll_once_out)"
+  teardown
+}
+
+# ARM: on this machine $HOME is itself a git repo root, so the git-root
+# inference resolves PROJECT to the home folder's name from any non-repo
+# directory under it. The scope must therefore be impossible to miss — on
+# stderr AND as the first stdout line, where the Monitor shows it — and
+# INTERAGENT_PROJECT must override the inference outright.
+arm_scope_banner_and_override() {
+  setup_env rcvr
+  db_write '{"assignments":[]}'
+
+  # A "home directory" that is a git root, with a non-repo subdir inside it.
+  mkdir -p "$TMP/homedir/scratch"
+  git -C "$TMP/homedir" init -q 2>/dev/null
+  cd "$TMP/homedir/scratch" || return 1
+
+  local inferred
+  inferred=$(INTERAGENT_PROJECT= bash "$POLLER" --once 2>"$TMP/b1.err")
+  assert_contains "the inferred (wrong) scope is on STDOUT"    "project=homedir" "$inferred"
+  assert_contains "  ...named as inferred, not chosen"         "source=git-root" "$inferred"
+  assert_contains "  ...and on stderr too"                     "project=homedir" "$(cat "$TMP/b1.err")"
+
+  local overridden
+  overridden=$(INTERAGENT_PROJECT=ql-g3-enterprise bash "$POLLER" --once 2>/dev/null)
+  assert_contains     "INTERAGENT_PROJECT overrides the git root" "project=ql-g3-enterprise" "$overridden"
+  assert_contains     "  ...and says where it came from"          "source=INTERAGENT_PROJECT" "$overridden"
+  assert_not_contains "  ...the git root is not used"             "project=homedir"           "$overridden"
+
+  local rc
+  INTERAGENT_PROJECT='bad`name`' bash "$POLLER" --once >/dev/null 2>&1; rc=$?
+  assert_eq "an override is validated like MACHINE" "2" "$rc"
+  teardown
+}
+
+# ARM (reviewer BLOCK 1): a directory's mtime does NOT move when files inside
+# it are written, so an age-based sweep deletes the state of a live poller that
+# has merely been quiet — and it loses its poll.sql with it, warning forever
+# and never delivering again. Sweep by DEAD OWNER, never by age.
+arm_stale_sweep_spares_live_dirs() {
+  setup_env rcvr
+  db_write '{"assignments":[]}'
+
+  INTERAGENT_MAX_LIFETIME_S=26 bash "$POLLER" 1 >"$TMP/live.out" 2>"$TMP/live.err" & local LIVE=$!
+  sleep 4
+  local d; d=$(ls -d "$STATE"/proc-* 2>/dev/null | head -1)
+  assert_eq "the live poller has a state dir" "1" "$(ls -d "$STATE"/proc-* 2>/dev/null | wc -l | tr -d ' ')"
+
+  touch -d '2 days ago' "$d"          # exactly what a quiet live poller looks like
+  INTERAGENT_MAX_LIFETIME_S=3 bash "$POLLER" 1 >/dev/null 2>&1   # a second poller sweeps
+  assert_eq "a second poller leaves the live (but old-looking) dir alone" "1" \
+    "$(ls -d "$d" 2>/dev/null | wc -l | tr -d ' ')"
+
+  db_write '{"assignments":[{"id":901,"title":"after the sweep","from_agent":"sender","to_target":"rcvr","status":"pending","ttl_hours":24,"context_refs":[],"created_at":"'"$(iso_shift 0)"'"}]}'
+  wait $LIVE
+  local out; out=$(cat "$TMP/live.out")
+  assert_contains     "the live poller still delivers afterwards" "INTERAGENT new #901" "$out"
+  assert_not_contains "  ...and was never blinded"                "poll failed"         "$out"
+  teardown
+}
+
+# ARM (reviewer BLOCK 2): keying the state dir by pid alone and creating it with
+# mkdir -p inherits whatever a previous process of that pid left behind — MSYS
+# recycles small pids — and a pre-seeded seen-file swallows unclaimed mail. The
+# decoy below is created by the SAME pid that then execs the poller, so this is
+# deterministic rather than a race.
+arm_proc_dir_starts_empty() {
+  setup_env rcvr
+  db_write '{"assignments":[{"id":901,"title":"must not be swallowed","from_agent":"sender","to_target":"rcvr","status":"pending","ttl_hours":24,"context_refs":[],"created_at":"'"$(iso_shift 0)"'"}]}'
+
+  local out
+  out=$(bash -c 'D="$1/proc-$2-$3-$$"; mkdir -p "$D"; printf "901\n" > "$D/seen.txt"; exec bash "$4" --once' \
+        _ "$STATE" "$INTERAGENT_MACHINE" "$INTERAGENT_PROJECT" "$POLLER" 2>/dev/null)
+  assert_contains "a state dir pre-seeded under our own pid does not swallow the message" \
+    "INTERAGENT new #901" "$out"
+  teardown
+}
+
+# ARM (reviewer BLOCK 3): ConnectTimeout only bounds the TCP connect. A hop that
+# connects and then hangs blocks the loop past even MAX_LIFETIME_S, so the hop
+# needs a hard timeout — and a killed hop is a FAILURE, never an empty poll.
+arm_hop_hangs() {
+  setup_env rcvr
+  db_write '{"assignments":[]}'
+  printf 'cat > /dev/null\nsleep 20\n' > "$TMP/hang.sh"
+
+  local t0 t1 out elapsed
+  t0=$(date +%s)
+  out=$(INTERAGENT_PSQL_WRAPPER="$TMP/hang.sh" INTERAGENT_HOP_TIMEOUT_S=4 \
+        INTERAGENT_MAX_LIFETIME_S=3 timeout 60 bash "$POLLER" 1 2>/dev/null)
+  t1=$(date +%s); elapsed=$((t1 - t0))
+
+  assert_contains     "a hung hop is reported as a failure" "hop hung - killed after 4s" "$out"
+  assert_not_contains "a hung hop is never a recovery"      "INTERAGENT recovered"       "$out"
+  assert_eq "the hop does not outlive the poller's lifetime (took ${elapsed}s)" \
+    "bounded" "$( [[ $elapsed -lt 15 ]] && echo bounded || echo unbounded )"
+  teardown
+}
+
+# ARM (reviewer BLOCK 4): the startup seed that silences pre-existing
+# claims/completions must use the DATABASE clock, like every other age here.
+# The fake clock sits ten days ahead of this machine, so a local-clock seed
+# replays history that should have been silent.
+arm_seed_uses_db_clock() {
+  setup_env sender
+  local T=14400            # +10 days, in minutes
+  db_write '{"now":"'"$(iso_shift $T)"'","assignments":[
+    {"id":901,"title":"finished before we started","from_agent":"sender","to_target":"peer","status":"completed","claimed_by":"peer","result":"old news","ttl_hours":168,"context_refs":[],"created_at":"'"$(iso_shift $((T-60)))"'","claimed_at":"'"$(iso_shift $((T-50)))"'","completed_at":"'"$(iso_shift $((T-40)))"'"},
+    {"id":902,"title":"claimed while we watch","from_agent":"sender","to_target":"peer2","status":"pending","ttl_hours":168,"context_refs":[],"created_at":"'"$(iso_shift $((T-1)))"'"}
+  ]}'
+
+  INTERAGENT_MAX_LIFETIME_S=16 bash "$POLLER" 1 >"$TMP/seed.out" 2>"$TMP/seed.err" & local P=$!
+  sleep 6
+  local during; during=$(cat "$TMP/seed.out")
+  assert_not_contains "a claim from before the poller started is silent"      "CLAIMED #901"   "$during"
+  assert_not_contains "a completion from before the poller started is silent" "COMPLETED #901" "$during"
+
+  db_patch 902 'status="claimed"' 'claimed_by="peer2"' "claimed_at=\"$(iso_shift $T)\""
+  wait $P
+  local after; after=$(cat "$TMP/seed.out")
+  assert_contains     "a claim made AFTER we started is announced" "CLAIMED #902 by peer2" "$after"
+  assert_not_contains "  ...and #901 stayed silent throughout"     "#901"                  "$after"
   teardown
 }
 
@@ -389,9 +513,11 @@ arm_known_bad() {
   fi
 }
 
-ARMS="orphan_no_steal wrong_name hop_failure_warns hop_truncated_reply \
-rearm_reannounces broadcast_24h \
-durable_todo_ttl_null_is_emitted claimed_completed_once alarms_5_15_60 \
+ARMS="orphan_no_steal wrong_name scope_banner_and_override \
+stale_sweep_spares_live_dirs proc_dir_starts_empty \
+hop_failure_warns hop_truncated_reply hop_hangs \
+rearm_reannounces broadcast_24h durable_todo_ttl_null_is_emitted \
+claimed_completed_once alarms_5_15_60 seed_uses_db_clock \
 no_alarm_when_claimed injection_refused lifetime_exit known_bad"
 
 # ── single-arm mode ──────────────────────────────────────────────────────────
@@ -433,7 +559,12 @@ done
 # ── phase 2: mutants ─────────────────────────────────────────────────────────
 # name | owning arm | file | sed expression
 MUTANTS=(
-  "shared-seen-file-restored|orphan_no_steal|poller|s@^PROC_DIR=.*@PROC_DIR=\"\$STATE_ROOT/proc-shared\"@"
+  "shared-seen-file-restored|orphan_no_steal|poller|s@^PROC_DIR=.*@PROC_DIR=\"\$STATE_ROOT/proc-shared\"; mkdir -p \"\$PROC_DIR\"@"
+  "scope-banner-not-on-stdout|scope_banner_and_override|poller|s@^say \"\$BANNER\"@:@"
+  "sweep-by-age-not-by-owner|stale_sweep_spares_live_dirs|poller|s@^      pid_is_poller \"\$pid\" && continue.*@      :@"
+  "proc-dir-reused-across-starts|proc_dir_starts_empty|poller|s@^PROC_DIR=.*@PROC_DIR=\"\$STATE_ROOT/proc-\${MACHINE}-\${PROJECT}-\${MAIN_PID}\"; mkdir -p \"\$PROC_DIR\"@"
+  "hop-timeout-removed|hop_hangs|poller|s@^    out=\$(timeout \"\$HOP_TIMEOUT_S\" bash \"\$INTERAGENT_PSQL_WRAPPER\".*@    out=\$(bash \"\$INTERAGENT_PSQL_WRAPPER\" < \"\$SQL_FILE\" 2>\"\$ERR_FILE\"); rc=\$?@"
+  "seed-uses-local-clock|seed_uses_db_clock|process|s@^    startMs = nowMs;@    startMs = Date.now();@"
   "hop-failure-as-empty|hop_failure_warns|poller|s@^    hop_failed .*@    return 0@"
   "alarm-fires-for-a-claimed-row|no_alarm_when_claimed|process|s@^    const unclaimed = .*@    const unclaimed = true;@"
   "COMPLETED-every-poll|claimed_completed_once|process|s@'COMPLETED-' + id@'COMPLETED-' + id + Math.random()@"
