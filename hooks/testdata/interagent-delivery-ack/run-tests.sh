@@ -236,6 +236,23 @@ arm_broadcast_24h() {
   teardown
 }
 
+# ARM: a durable todo carries ttl_hours IS NULL. make_interval(hours => NULL) is
+# NULL, so a bare TTL predicate is UNKNOWN and drops every todo — lived on
+# 2026-09-20, when the Grok TUI saw #265 and missed #262/#263/#266/#268.
+arm_durable_todo_ttl_null_is_emitted() {
+  setup_env rcvr
+  db_write '{"assignments":[
+    {"id":262,"title":"durable todo, no TTL","from_agent":"sender","to_target":"rcvr","status":"pending","ttl_hours":null,"context_refs":[],"created_at":"'"$(iso_shift -4320)"'"},
+    {"id":265,"title":"ordinary message with a TTL","from_agent":"sender","to_target":"rcvr","status":"pending","ttl_hours":24,"context_refs":[],"created_at":"'"$(iso_shift -30)"'"},
+    {"id":268,"title":"genuinely expired","from_agent":"sender","to_target":"rcvr","status":"pending","ttl_hours":1,"context_refs":[],"created_at":"'"$(iso_shift -600)"'"}
+  ]}'
+  local out; out=$(poll_once_out)
+  assert_contains     "a 3-day-old durable todo IS emitted"  "INTERAGENT new #262" "$out"
+  assert_contains     "an ordinary in-TTL message still is"  "INTERAGENT new #265" "$out"
+  assert_not_contains "a genuinely expired TTL is still cut" "INTERAGENT new #268" "$out"
+  teardown
+}
+
 # ARM: CLAIMED and COMPLETED are each said exactly once, however many polls run.
 arm_claimed_completed_once() {
   setup_env sender
@@ -345,8 +362,8 @@ arm_known_bad() {
 }
 
 ARMS="orphan_no_steal wrong_name hop_failure_warns rearm_reannounces broadcast_24h \
-claimed_completed_once alarms_5_15_60 no_alarm_when_claimed injection_refused \
-lifetime_exit known_bad"
+durable_todo_ttl_null_is_emitted claimed_completed_once alarms_5_15_60 \
+no_alarm_when_claimed injection_refused lifetime_exit known_bad"
 
 # ── single-arm mode ──────────────────────────────────────────────────────────
 if [[ "${1:-}" == "--list" ]]; then
@@ -393,6 +410,7 @@ MUTANTS=(
   "COMPLETED-every-poll|claimed_completed_once|process|s@'COMPLETED-' + id@'COMPLETED-' + id + Math.random()@"
   "local-clock-used-for-age|alarms_5_15_60|process|s@^  const nowMs = .*@  const nowMs = Date.now();@"
   "broadcast-exempt-removed|broadcast_24h|process|s@^      if (isBroadcast .*@      if (false) continue;@"
+  "durable-todo-ttl-guard-reverted|durable_todo_ttl_null_is_emitted|poller|s@^    AND (a.ttl_hours IS NULL OR @    AND (@"
 )
 
 echo

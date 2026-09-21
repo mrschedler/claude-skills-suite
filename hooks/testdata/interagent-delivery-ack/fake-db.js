@@ -34,6 +34,11 @@ process.stdin.on('end', () => {
     process.exit(1);
   }
 
+  // psql ignores `--` comments, and so must we: the poller's SQL carries a
+  // comment that names the predicates below, and matching on comment text
+  // rather than on the statement would let a reverted predicate pass.
+  sql = sql.replace(/--[^\n]*/g, '');
+
   const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
   const assignments = state.assignments || [];
 
@@ -55,11 +60,14 @@ process.stdin.on('end', () => {
     const proj = refsOf(a).filter((x) => x && x.type === 'project');
     return proj.length === 0 || proj.some((x) => String(x.id) === project);
   };
-  // Mirrors the SQL exactly, including its known wart: make_interval(hours =>
-  // NULL) is NULL, so a row with ttl_hours IS NULL compares NULL and is
-  // DROPPED. The fake must not be kinder than the database.
+  // The TTL predicate is READ OUT OF THE SQL, not assumed, so that reverting
+  // the durable-todo guard in the poller is visible here. Without the
+  // `ttl_hours IS NULL` arm, make_interval(hours => NULL) is NULL, the
+  // comparison is UNKNOWN, and every todo (ttl_hours IS NULL) is silently
+  // dropped — exactly what happened on 2026-09-20.
+  const ttlNullKept = /ttl_hours IS NULL/.test(sql);
   const ttlOk = (a) => {
-    if (a.ttl_hours == null) return false;
+    if (a.ttl_hours == null) return ttlNullKept;
     return Date.parse(a.created_at) > now - a.ttl_hours * 3600 * 1000;
   };
   const row = (event, a) => ({

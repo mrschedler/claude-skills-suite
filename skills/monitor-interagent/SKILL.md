@@ -42,9 +42,21 @@ interagent"):
    Monitor {
      description: "interagent inbox (project=<PROJECT>)",
      persistent: true,
-     command: "INTERAGENT_MAX_LIFETIME_S=2100 bash /c/dev/claude-skills-suite/hooks/interagent-monitor-poll.sh <interval>"
+     command: "INTERAGENT_MACHINE=<MACHINE> INTERAGENT_MAX_LIFETIME_S=2100 bash /c/dev/claude-skills-suite/hooks/interagent-monitor-poll.sh <interval>"
    }
    ```
+   **Spell out `INTERAGENT_MACHINE` for every Claude row, the personal `claude`
+   session included** — there it merely repeats the `.machine-id` default, and that
+   is the point: an unnamed poller is indistinguishable from any other in a process
+   list, and a machine-wide kill sweep took out three sessions on 2026-09-21 for
+   exactly that reason.
+
+   | Launch | `INTERAGENT_MACHINE` |
+   |---|---|
+   | `claude` | `dell-xps` |
+   | `claude-work` | `dell-xps-work` |
+   | `grok-agent` | `dell-xps-grok` |
+
    **`INTERAGENT_MAX_LIFETIME_S=2100` is not optional for this caller.** The Monitor
    tool caps at 30 minutes and leaves its poller running past that, so without the cap
    every armed watch leaves a process behind. At 2100s (35 min) the poller prints

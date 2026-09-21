@@ -199,7 +199,11 @@ inbox AS (
   WHERE a.status = 'pending'
     AND a.claimed_by IS NULL
     AND (a.to_target = p.machine OR a.to_target = 'any')
-    AND a.created_at > now() - make_interval(hours => a.ttl_hours)
+    -- Todos are durable: ttl_hours IS NULL. make_interval(hours => NULL) is
+    -- NULL, so a bare TTL predicate is UNKNOWN and silently drops every todo
+    -- (lived 2026-09-20: the Grok TUI saw #265 and missed #262/#263/#266/#268).
+    -- Matches interagent-dispatch.sh. Do not "simplify" this back.
+    AND (a.ttl_hours IS NULL OR a.created_at > now() - make_interval(hours => a.ttl_hours))
     AND (
       NOT EXISTS (
         SELECT 1 FROM jsonb_array_elements(COALESCE(a.context_refs::jsonb, '[]'::jsonb)) r
