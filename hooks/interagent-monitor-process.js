@@ -1,17 +1,34 @@
 #!/usr/bin/env node
-// Process one poll JSON payload from interagent-monitor-poll.sh.
-// stdin: JSON array of {event,id,title,from_agent,to_target,status,claimed_by,result,
-//   refs,delivered_to,delivered_at,claimed_at,completed_at,created_at}
-// env: PROJECT, SEEN, MACHINE, UNDELIVERED_MIN
-// stdout: emit lines; appends new seen keys to SEEN. Exit 1 if a write to stdout fails.
+// Process one poll payload from interagent-monitor-poll.sh.
+//
+// stdin: JSON object
+//   { schema: "full"|"legacy", now: <iso>, stamped: [id…], watchers: [{machine,idle_secs,stale}…],
+//     rows: [{event,id,title,from_agent,to_target,status,claimed_by,result,refs,
+//             delivered_to,delivered_at,claimed_at,completed_at,created_at}…] }
+//   (a bare array is still accepted so an old poller can drive a new process.js)
+// env: PROJECT, SEEN, MACHINE, UNDELIVERED_MIN, ACK_FILE, INTERVAL_SECS
+// stdout: emit lines.
+//
+// THE SAFETY PROPERTY THIS FILE OWNS
+// ----------------------------------
+// A key enters the seen-file, and an inbox id enters the ack-file, ONLY after
+// fs.writeSync(1, …) returned without throwing — i.e. only after a live reader
+// actually received the line. The ack-file is what the next poll stamps as
+// delivered. So a poller writing into a dead pipe stamps nothing and marks
+// nothing seen: the message stays pending for the live session and the sender's
+// UNDELIVERED alarm stays armed. Never move an append above its write.
+// Exit 1 if any write to stdout failed, so the poller can end the orphan.
 
 'use strict';
 const fs = require('fs');
 
 const project = process.env.PROJECT || '';
 const seenFile = process.env.SEEN || '';
+const ackFile = process.env.ACK_FILE || '';
+const sinceFile = process.env.SINCE_FILE || '';
 const machine = process.env.MACHINE || '';
 const undeliveredMin = Math.max(1, parseInt(process.env.UNDELIVERED_MIN || '5', 10) || 5);
+const intervalSecs = Math.max(1, parseInt(process.env.INTERVAL_SECS || '5', 10) || 5);
 
 function loadSeen() {
   try {
@@ -42,34 +59,76 @@ function projectMine(refs) {
   return { mine, tag: mine ? 'project=' + project : null };
 }
 
+// Spec D: the heartbeat has a reader. A receiver is "stale" when it has missed
+// three of its own poll intervals; the poller computes that server-side and we
+// only render it, falling back to our own interval if the row is old-shaped.
+function watcherNote(map, target) {
+  const w = map.get(String(target));
+  if (!w) return '[watcher: none]';
+  const idle = Number.isFinite(w.idle_secs) ? w.idle_secs : null;
+  const stale = typeof w.stale === 'boolean'
+    ? w.stale
+    : (idle !== null && idle > 3 * intervalSecs);
+  if (idle === null) return stale ? '[watcher: stale]' : '[watcher: live]';
+  return (stale ? '[watcher: stale ' : '[watcher: live ') + idle + 's]';
+}
+
 let body = '';
 process.stdin.on('data', (c) => { body += c; });
 process.stdin.on('end', () => {
-  let rows;
+  let payload;
   try {
-    rows = JSON.parse(body || '[]');
+    payload = JSON.parse(body || '{}');
   } catch (_) {
     return;
   }
-  if (!Array.isArray(rows)) return;
+
+  // Accept both the new object envelope and a bare row array (old poller).
+  let rows;
+  let schema = 'full';
+  let watcherRows = [];
+  if (Array.isArray(payload)) {
+    rows = payload;
+  } else if (payload && typeof payload === 'object') {
+    rows = Array.isArray(payload.rows) ? payload.rows : [];
+    schema = payload.schema === 'legacy' ? 'legacy' : 'full';
+    watcherRows = Array.isArray(payload.watchers) ? payload.watchers : [];
+  } else {
+    return;
+  }
+
+  // The poller's "what changed since" high-water mark is the SERVER clock, never
+  // ours — the two machines' clocks are not the same. Written here rather than in
+  // the shell so a poll costs exactly one `node` start.
+  if (sinceFile && payload && payload.now) {
+    try { fs.writeFileSync(sinceFile, String(payload.now)); } catch (_) { /* ignore */ }
+  }
+
+  const watchers = new Map();
+  for (const w of watcherRows) {
+    if (w && w.machine != null) watchers.set(String(w.machine), w);
+  }
 
   const seen = loadSeen();
-  const fresh = [];
+  const freshSeen = [];
+  const freshAck = [];
   let broken = false;
 
+  // Returns true when the line reached a live reader.
   function emit(line, key) {
-    if (broken) return;
-    if (key && seen.has(key)) return;
+    if (broken) return false;
+    if (key && seen.has(key)) return false;
     try {
       fs.writeSync(1, line + '\n');
     } catch (_) {
       broken = true;
-      return;
+      return false;
     }
     if (key) {
       seen.add(key);
-      fresh.push(key);
+      freshSeen.push(key);
     }
+    return true;
   }
 
   for (const r of rows) {
@@ -81,15 +140,19 @@ process.stdin.on('end', () => {
       if (seen.has(id)) continue;
       const { mine, tag } = projectMine(r.refs);
       if (!mine) continue;
-      emit(
+      const delivered = emit(
         'INTERAGENT new #' + id + ' [' + tag + '] from ' + (r.from_agent || r.from || '?') +
           ': ' + (r.title || '') + '  -> check interagent to read + claim',
         id
       );
+      // Only a line that landed earns a delivery stamp on the next poll.
+      if (delivered && !r.delivered_at) freshAck.push(id);
       continue;
     }
 
     if (event !== 'sent') continue;
+    // An un-migrated database cannot answer any of the sender-side questions.
+    if (schema === 'legacy') continue;
 
     if (r.delivered_at) {
       emit(
@@ -109,26 +172,34 @@ process.stdin.on('end', () => {
       emit('COMPLETED #' + id + ' by ' + who + ': ' + truncResult(r.result), 'COMPLETED-' + id);
     }
 
+    // A delivered row is never an alarm. This guard is the difference between a
+    // trustworthy alarm and a cry-wolf one.
     if (!r.delivered_at) {
       const age = ageMinutes(r.created_at);
-      if (age >= undeliveredMin) {
-        for (const T of [5, 15, 60]) {
-          if (T < undeliveredMin) continue;
-          if (age < T) continue;
-          const key = 'ALARM-' + T + '-' + id;
-          emit(
-            'UNDELIVERED #' + id + ' to ' + (r.to_target || '?') +
-              ' for >' + undeliveredMin + ' min — receiver not acking (old poller or offline)',
-            key
-          );
-        }
+      const note = watcherNote(watchers, r.to_target);
+      // 5/15/60 plus the configured first threshold, so a non-default
+      // UNDELIVERED_MIN still gets its own alarm rather than waiting for 60.
+      const thresholds = [...new Set([undeliveredMin, 5, 15, 60])].sort((a, b) => a - b);
+      for (const T of thresholds) {
+        if (T < undeliveredMin) continue;
+        if (age < T) continue;
+        emit(
+          'UNDELIVERED #' + id + ' to ' + (r.to_target || '?') +
+            ' for >' + T + ' min — receiver not acking (old poller or offline) ' + note,
+          'ALARM-' + T + '-' + id
+        );
       }
     }
   }
 
-  if (fresh.length && seenFile) {
+  if (freshSeen.length && seenFile) {
     try {
-      fs.appendFileSync(seenFile, fresh.join('\n') + '\n');
+      fs.appendFileSync(seenFile, freshSeen.join('\n') + '\n');
+    } catch (_) { /* ignore */ }
+  }
+  if (freshAck.length && ackFile) {
+    try {
+      fs.appendFileSync(ackFile, freshAck.join('\n') + '\n');
     } catch (_) { /* ignore */ }
   }
 

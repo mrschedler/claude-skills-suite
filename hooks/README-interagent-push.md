@@ -123,15 +123,144 @@ stamps nullable `delivered_to` / `delivered_at` (never touches `claimed_by` /
 | `COMPLETED #id by <machine>: <~200 chars of result>` | `complete {result}` is visible to the sender |
 | `UNDELIVERED #id to <target> for >M min — receiver not acking (old poller or offline)` | no stamp after `INTERAGENT_UNDELIVERED_MIN` (default 5); repeats sparsely at 5 / 15 / 60 min via seen-file keys `ALARM-5-<id>` etc. |
 
-Each poll is **one SQL round trip** (CTE): upsert `interagent_watchers` heartbeat,
-stamp newly matched inbox rows, return inbox pending ∪ sent rows. Pidfile
-`%LOCALAPPDATA%/claude-interagent/poller-<machine>-<project>.pid` refuses a
-second live poller on the same seen-file (replaces a dead pid). Broken Monitor
-stdout → poller exits. Migration:
-`migrations/0001_interagent_delivery_ack.sql` (+ rollback). **Do not apply to
-live pgvector until verifier review.** Old pollers keep working (nullable
-columns, no renames). Offline tests:
-`hooks/testdata/interagent-delivery-ack/run-tests.sh`.
+Each poll is **one SQL round trip** (CTE): upsert the `interagent_watchers`
+heartbeat, stamp the ids the *previous* poll delivered, return inbox pending ∪
+changed sent rows ∪ the watcher rows of this machine's sent targets.
+
+### A stamp means "a live session received this line"
+
+This is the whole design, and it is the opposite of the obvious implementation.
+The stamp is **not** in the statement that returns the inbox — that would ack a
+message the moment the database was asked about it, including for an orphan
+poller writing into a closed Monitor pipe. `interagent-monitor-process.js`
+appends an id to an **ack-file** only after `fs.writeSync(1, …)` returned without
+throwing; the **next** poll's CTE stamps exactly those ids. Cost is unchanged
+(the ids ride along in the same round trip), and the meaning changes completely:
+
+- a poller whose reader is gone fails the write, so the id enters neither the
+  seen-file nor the ack-file — the message stays pending for the live session,
+  and the sender's `UNDELIVERED` alarm stays armed;
+- if a poller dies between the write and the next poll, the id is still in the
+  ack-file and the next poller stamps it — late, but true.
+
+### No orphans
+
+The pidfile `%LOCALAPPDATA%/claude-interagent/poller-<machine>-<project>.pid` is
+created with `set -o noclobber` (atomic `O_EXCL`) and holds `<pid> <token>`. A
+starting poller:
+
+- **reaps** a pid that is dead, or whose `/proc/<pid>/cmdline` is not this script
+  — MSYS pids are small and recycle fast, so `kill -0` alone cannot tell a poller
+  from any other Git-Bash process — and logs one line when it does;
+- **challenges** a genuine live holder with `SIGUSR1`. The holder proves its pipe
+  with a *real* write and exits if that write fails. So an orphan hands the lock
+  over, and a live session is never left with zero pollers; a genuinely live
+  poller keeps it and the newcomer refuses, so two pollers never share one
+  seen-file.
+
+`--once` takes the lock too (sharing the seen-file with a running loop is the
+original incident, `GOTCHAS.md` §`expired-monitor-leaves-its-poller-running…`).
+
+### Reader-gone detection on Git-Bash/Windows — measured, not assumed
+
+| probe | result with the reader gone | usable? |
+|---|---|---|
+| `[ -e /proc/self/fd/1 ]` | **TRUE** | no |
+| `readlink /proc/self/fd/1` | reports `pipe:[…]` even for a plain file | no |
+| `printf '' >&1` (zero-byte write) | **succeeds** — a 0-length write to a broken pipe returns 0, no `EPIPE`, no `SIGPIPE` | no |
+| `kill -0 $PPID` | `$PPID` becomes `1` on orphaning and `kill -0 1` fails | **yes**, when armable |
+| a real 1-byte write | fails | **yes**, but costs a byte of Monitor output |
+
+So the poller runs the `$PPID` check every poll whenever it can be armed (the
+parent was a real live pid at startup; its identity is pinned by its cmdline
+against pid reuse), and uses the real-write probe **on demand** — when challenged
+by a starting poller, and on a timer only if `INTERAGENT_PROBE_SECS > 0`
+(default `0`, off, because it writes into the session's chat stream).
+Correctness never depends on either probe; the ack-file gate above is what makes
+an undetected orphan harmless. These facts are asserted by the `probe` arm of the
+suite, so a platform change breaks a test rather than the feature.
+
+### Schema mismatch is loud
+
+The poller probes for `delivered_to` / `interagent_watchers` once at startup (and
+detects the error if the columns vanish under it). On an un-migrated database it
+prints exactly one line **on stdout**, where the session can see it —
+`WARN: interagent schema not migrated — inbox-only mode (no delivery ack)` — and
+falls back to the pre-change inbox query. It never returns silence.
+
+Migration: `migrations/0001_interagent_delivery_ack.sql` (+ rollback). Old
+pollers keep working across it (nullable columns, no renames). Offline tests:
+`hooks/testdata/interagent-delivery-ack/run-tests.sh` — 17 arms and 7 mutants,
+no network, no live database.
+
+## DEPLOY
+
+**Order: migration first, then code.** Both directions are safe, but only this
+order has no degraded window.
+
+1. **Apply the migration.**
+
+   ```bash
+   ssh deepthought 'docker exec -i pgvector psql -U postgres homelab -v ON_ERROR_STOP=1 -f -' \
+     < migrations/0001_interagent_delivery_ack.sql
+   ```
+
+   It is additive, idempotent and old-poller-safe: nullable columns with no
+   default (catalog-only `ALTER`, no table rewrite), `CREATE TABLE IF NOT
+   EXISTS`, three `CREATE INDEX IF NOT EXISTS`. **Every currently running old
+   poller keeps working unchanged across it** — there is no window in which
+   anything is broken.
+
+2. **Verify**, before touching any code:
+
+   ```bash
+   ssh deepthought "docker exec pgvector psql -U postgres homelab -At -c \
+     \"SELECT column_name FROM information_schema.columns \
+       WHERE table_name='interagent_assignments' AND column_name LIKE 'delivered%';\""
+   # expect: delivered_to, delivered_at
+   ```
+
+   Then confirm a live old poller still announces a test message normally.
+
+3. **Land the code** on `main` and let Syncthing propagate.
+
+4. **Pick the new poller up in each live session — stop, verify, start.**
+
+   ```
+   /monitor-interagent stop
+   ```
+
+   then confirm the pidfile is gone:
+
+   ```bash
+   ls "$LOCALAPPDATA/claude-interagent/poller-<machine>-<project>.pid"   # must not exist
+   ```
+
+   If it is still there, the previous poller did not run its EXIT trap. Check
+   `tr '\0' ' ' < /proc/<pid>/cmdline`, kill it, delete the file. Then:
+
+   ```
+   monitor interagent
+   ```
+
+   With the new code a second start would challenge the old one and win anyway,
+   but the old (pre-fix) poller cannot answer a challenge — it has no `SIGUSR1`
+   handler — so during this one changeover the manual sequence is mandatory, not
+   advisory. After this deploy it becomes advisory.
+
+**What old pollers see.** Nothing changes for them: they never select the new
+columns, never write the watcher table, and never look at an ack-file. They keep
+delivering exactly as before. They simply never stamp, so a *new* sender polling
+alongside them will report `UNDELIVERED … [watcher: none]` for mail they did in
+fact deliver — which is the correct reading of "the receiver is not acking (old
+poller or offline)", and resolves itself as sessions are restarted.
+
+**Rollback — code first, then schema.** Revert the code on `main`, restart the
+monitors, and only then run
+`migrations/0001_interagent_delivery_ack_rollback.sql`. A new poller left running
+against a rolled-back schema does not go silent (it falls back to inbox-only with
+the one WARN line), but reverting the code first means nobody ever sees that
+state.
 
 ## Human notification (separate layer, not agent-to-agent)
 
@@ -145,8 +274,10 @@ agent-to-agent path.
 |------|------|
 | `hooks/interagent-inbox-nudge.sh` | the `UserPromptSubmit` nudge (iteration 1, push-on-activity) |
 | `hooks/interagent-monitor-poll.sh` | the `monitor interagent` poll loop (idle reaction + delivery ack); run by the `Monitor` tool, NOT wired as a hook |
-| `hooks/interagent-monitor-process.js` | formats inbox/sender/alarm lines; seen-file dedupe |
-| `migrations/0001_interagent_delivery_ack.sql` | additive `delivered_*` + `interagent_watchers` (not applied until review) |
+| `hooks/interagent-monitor-process.js` | formats inbox/sender/alarm lines; owns the seen-file and ack-file **write-gated** appends |
+| `hooks/testdata/interagent-delivery-ack/` | offline suite: 17 arms + 7 mutants, fake DB, no network |
+| `migrations/0001_interagent_delivery_ack.sql` | additive `delivered_*` + `interagent_watchers` + indexes (see DEPLOY) |
+| `config/grok/interagent-dispatch.sh` | Grok's unattended dispatcher; stamps delivery before each worker launch |
 | `config/code/settings.json` → `hooks.UserPromptSubmit` | wires the nudge hook |
 | `config/code/behavioral-reminders.bp.txt` Step 5 | session-start check + routing rules + command vocabulary |
 | this file | design + convention + commands + roadmap |

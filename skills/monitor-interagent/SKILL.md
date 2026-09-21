@@ -51,18 +51,37 @@ interagent"):
 2. **Don't double-arm.** List running tasks first. If a monitor whose description is
    `interagent inbox (project=<this project>)` is already running, tell the user it's
    already armed and stop. The poller also takes a pidfile lock
-   (`poller-<machine>-<project>.pid`) so a second process on the same seen-file refuses.
+   (`poller-<machine>-<project>.pid`): a starting poller reaps a pid that is dead
+   or that `/proc/<pid>/cmdline` shows is not a poller, and **challenges** a live
+   holder with `SIGUSR1` — the holder proves its pipe with a real write and exits
+   if that write fails. So an orphan left by an expired Monitor hands the lock
+   over instead of locking this session out, while a genuinely live poller keeps
+   it and the newcomer refuses with `already running pid=…`. That refusal is the
+   correct outcome, not an error to work around.
 
 3. **Arm the Monitor tool.** Default interval 5s. Use the command from the setup table
    for **your** name. Description: `interagent inbox (project=<PROJECT>)`,
    `persistent: true`.
 
    Each poll (one SQL round trip) upserts `interagent_watchers`, stamps
-   `delivered_to` / `delivered_at` when it emits an inbox line, and may also emit
-   sender-visibility lines: `DELIVERED`, `CLAIMED`, `COMPLETED` (first ~200 chars of
-   `result`), or `UNDELIVERED … old poller or offline`.
+   `delivered_to` / `delivered_at` for the lines the **previous** poll actually
+   wrote to this session, and may also emit sender-visibility lines: `DELIVERED`,
+   `CLAIMED`, `COMPLETED` (first ~200 chars of `result`), or
+   `UNDELIVERED … old poller or offline [watcher: none|stale Ns|live Ns]`.
 
-4. **Confirm to the user:** what's being watched (machine + project), the interval,
+   A stamp therefore means "a live session received this line", never "the
+   database was asked about it". See
+   [README-interagent-push.md](../../hooks/README-interagent-push.md) §iteration 3.
+
+4. **If the first line you see is a WARN.**
+   `WARN: interagent schema not migrated — inbox-only mode (no delivery ack)`
+   means the poller is running against an un-migrated database. Inbox delivery
+   still works; `DELIVERED` / `CLAIMED` / `COMPLETED` / `UNDELIVERED` will not
+   appear. Surface it to the user and point at
+   `migrations/0001_interagent_delivery_ack.sql`. It is printed once per poller,
+   not per poll — do not treat its absence on later polls as "fixed".
+
+5. **Confirm to the user:** what's being watched (machine + project), the interval,
    and that "stop monitoring" disarms it.
 
 ## On each wake event (a line from the poller)
@@ -71,7 +90,9 @@ interagent"):
 |-------------|--------|
 | `INTERAGENT new #id` | `inbox` → route → `claim` if yours → act → `complete` / `send` reply |
 | `DELIVERED` / `CLAIMED` / `COMPLETED` | surface to the user (sender-side progress); no claim |
-| `UNDELIVERED` | surface warning — receiver not acking |
+| `UNDELIVERED` | surface warning — receiver not acking. `[watcher: none]` = it has no poller at all; `[watcher: stale Ns]` = its poller has missed 3+ of its own intervals; `[watcher: live Ns]` = it is polling but not acking, i.e. an **old** poller |
+| `WARN:` | the schema or the transport is degraded — surface it, do not swallow it |
+| `INTERAGENT poller alive` | this poller answered another poller's start-up challenge; informational |
 
 For inbox wakes:
 
@@ -84,5 +105,15 @@ For inbox wakes:
 
 - Opt-in per session; does not survive session end. NOT a hook (SSH is allowed).
 - `INTERAGENT_UNDELIVERED_MIN` (default 5) controls the first undelivered alarm.
+- `INTERAGENT_PROBE_SECS` (default 0 = off) enables a periodic real-write pipe
+  probe. It costs one blank line per probe in the chat stream, so leave it off
+  unless diagnosing a stuck poller.
 - Test without arming: `INTERAGENT_MACHINE=<your name> bash …/interagent-monitor-poll.sh --once`.
+  `--once` takes the pidfile lock too, so it will refuse while a monitor is
+  armed — that is deliberate: two processes sharing one seen-file is the bug
+  this lock exists to prevent (`GOTCHAS.md`
+  §`expired-monitor-leaves-its-poller-running-and-orphans-steal-inbox-events`).
+- Upgrading the poller in a live session: **stop → verify the pidfile is gone →
+  start**. See the DEPLOY section of
+  [README-interagent-push.md](../../hooks/README-interagent-push.md).
 - Offline suite: `hooks/testdata/interagent-delivery-ack/run-tests.sh`.

@@ -84,9 +84,13 @@ When you have an answer to another agent's question, **close the loop on the age
 - Durable + offline-safe: rows persist whether or not a session is watching. A live watcher
   (monitor-interagent) just makes a session react *immediately*; without it, the next inbox
   read still finds everything.
-- Delivery ack (migration `0001_interagent_delivery_ack`): pollers stamp `delivered_to` /
-  `delivered_at` on emit. `check` already returns `SELECT *`, so those columns ride along
-  after apply — no gateway change required. Old pollers remain compatible (nullable, no renames).
+- Delivery ack (migration `0001_interagent_delivery_ack`): a poller stamps `delivered_to` /
+  `delivered_at` on the poll **after** the one that wrote the line to a live session, so the
+  stamp means "a session actually received this", not "the database was asked about it" —
+  an orphan poller writing into a closed pipe stamps nothing. `check` already returns
+  `SELECT *`, so those columns ride along after apply — no gateway change required. Old
+  pollers remain compatible (nullable, no renames) but never stamp, so mail they deliver
+  reads as `UNDELIVERED … [watcher: live]` to a new sender. Grok's dispatcher stamps too.
 - Tool mechanics live in `interagent_list`; this skill is the intent→call layer; the
   SessionStart/UserPromptSubmit hook is the habit layer (reminds you to check). Three layers,
   so discovery is pull, not recall.
