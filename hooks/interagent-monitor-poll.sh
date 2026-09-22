@@ -22,6 +22,14 @@
 # that project's session. "New" = id not previously emitted, tracked in a
 # non-synced seen-file under LOCALAPPDATA (per machine+project).
 #
+# ORPHAN GUARD ───────────────────────────────────────────────────────────────────
+# The Monitor tool launches this script from a wrapper shell. When the monitor
+# expires (~30 min) that wrapper is killed, but this loop used to survive it —
+# and an orphaned poller keeps CLAIMING new interagent mail into its seen-file,
+# so the live monitor never emits it. Lived 2026-09-21/22: ~40 orphan pollers had
+# piled up at the 30-min monitor cadence, all eating events. The loop now watches
+# a parent pid and exits silently once it is gone (see PARENT below).
+#
 # ROBUSTNESS ─────────────────────────────────────────────────────────────────────
 # Every SSH/psql failure is swallowed so one transient error never kills the
 # monitor. BatchMode + ConnectTimeout mean it fails fast instead of hanging.
@@ -45,7 +53,49 @@ case "$ARG" in
   *)             INTERVAL="$ARG" ;;
 esac
 
-MACHINE=$(sed -n 's/^machine:[[:space:]]*//p' /c/dev/.machine-id 2>/dev/null | head -1)
+# Parent to watch, for the orphan guard described above.
+#
+# MSYS nuance: this script's WINDOWS parent is a short-lived spawn stub that dies
+# immediately (which is why "parent dead" alone is not a usable orphan test from
+# PowerShell). Inside MSYS, $PPID is the real launching shell. Walk up the MSYS
+# ancestry via /proc/<pid>/ppid and keep the OUTERMOST ancestor that still carries
+# this script in its command line — that is the wrapper the monitor owns, so it is
+# the one whose death means "the monitor is gone". Git Bash provides both
+# /proc/<pid>/ppid and /proc/<pid>/cmdline; if either is missing we fall back to
+# the immediate $PPID, which is still the launching shell and still correct for a
+# monitor launch — just less precise when the monitor nests extra shells.
+SELF_NAME=$(basename "$0")
+PARENT=$PPID
+if [[ -r "/proc/$PPID/ppid" ]]; then
+  probe=$PPID
+  for _ in 1 2 3 4 5 6; do
+    [[ -r "/proc/$probe/cmdline" ]] || break
+    # CONTIGUOUS run only: climb while each ancestor still names this script, and
+    # stop at the first one that does not. Climbing past that gap is what makes
+    # this fragile — any unrelated outer shell whose command line merely MENTIONS
+    # the script (a harness, an editor, another agent's launcher) would be adopted
+    # as the parent, and since it outlives the monitor the guard would never fire.
+    # Erring inward is safe (we exit a little early at worst); erring outward
+    # silently restores the orphan bug, so the loop breaks rather than continues.
+    tr '\0' ' ' < "/proc/$probe/cmdline" 2>/dev/null | grep -qF "$SELF_NAME" || break
+    PARENT=$probe
+    next=$(cat "/proc/$probe/ppid" 2>/dev/null)
+    [[ "$next" =~ ^[0-9]+$ ]] || break
+    (( next > 1 )) || break            # re-parented to init: top of the MSYS tree
+    probe=$next
+  done
+fi
+# If the parent is already gone or unknowable at start, disable the guard rather
+# than exiting instantly — a detached/manual launch must still run.
+kill -0 "$PARENT" 2>/dev/null || PARENT=""
+
+# Cheap: one kill(2) probe per iteration, no fork.
+parent_alive() { [[ -z "$PARENT" ]] || kill -0 "$PARENT" 2>/dev/null; }
+
+# INTERAGENT_MACHINE override (set by per-profile launchers such as claude-work),
+# else the non-synced .machine-id.
+MACHINE="${INTERAGENT_MACHINE:-}"
+[[ -z "$MACHINE" ]] && MACHINE=$(sed -n 's/^machine:[[:space:]]*//p' /c/dev/.machine-id 2>/dev/null | head -1)
 MACHINE="${MACHINE:-unknown}"
 
 GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
@@ -57,8 +107,11 @@ SEEN="$STATE_DIR/seen-${MACHINE}-${PROJECT}.txt"
 touch "$SEEN" 2>/dev/null
 
 # Project filtering happens in node (below), so the project string never enters
-# the SQL/SSH quoting. MACHINE comes from the controlled .machine-id file.
-SQL="SELECT coalesce(json_agg(json_build_object('id',id,'title',title,'from',from_agent,'refs',context_refs)),'[]') FROM interagent_assignments WHERE status='pending' AND (to_target='${MACHINE}' OR to_target='any') AND created_at > now() - make_interval(hours => ttl_hours);"
+# the SQL/SSH quoting. MACHINE comes from INTERAGENT_MACHINE or the controlled .machine-id file.
+# Todos are durable: ttl_hours IS NULL. `created_at > now() - make_interval(hours => NULL)`
+# is UNKNOWN, so a bare TTL predicate silently drops every todo (lived 2026-09-20:
+# Grok TUI saw #265 msg and missed #262/#263/#266/#268). Match interagent-dispatch.sh.
+SQL="SELECT coalesce(json_agg(json_build_object('id',id,'title',title,'from',from_agent,'refs',context_refs)),'[]') FROM interagent_assignments WHERE status='pending' AND (to_target='${MACHINE}' OR to_target='any') AND (ttl_hours IS NULL OR created_at > now() - make_interval(hours => ttl_hours));"
 
 poll_once() {
   local json
@@ -97,6 +150,7 @@ if [[ "$ONCE" -eq 1 ]]; then
 fi
 
 while true; do
+  parent_alive || exit 0                # orphaned: the monitor that owns us is gone
   poll_once
   sleep "$INTERVAL"
 done
