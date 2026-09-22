@@ -1,0 +1,24 @@
+NOT APPLIED. The CEO owns settings.json. To enable the director nudge, merge
+the "PreToolUse" array below into the "hooks" object of the chosen settings.json
+(~/.claude/settings.json for all projects, or the project's .claude/settings.json
+for QL-G3-Enterprise only). If a PreToolUse array already exists, append this
+one matcher object to it rather than replacing the array.
+
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash C:/dev/claude-skills-suite/hooks/director-nudge.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
+
+To disable: remove that matcher object again. To reset a session's counter,
+delete its file under $TMPDIR/claude-director-nudge/.
