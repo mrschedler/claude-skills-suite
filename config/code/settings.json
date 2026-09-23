@@ -47,7 +47,7 @@
       "Bash(python client/test_g3_broker.py*)"
     ]
   },
-  "model": "claude-fable-5[1m]",
+  "model": "claude-fable-5-1[1m]",
   "hooks": {
     "SessionStart": [
       {
@@ -165,6 +165,60 @@
   "skipDangerousModePermissionPrompt": true,
   "skipWorkflowUsageWarning": true,
   "theme": "light",
+  "switchModelsOnFlag": false,
+  "agentPushNotifEnabled": true,
+  "autoMode": {
+    "environment": [
+      "### Org-wide",
+      "**Organization**: None configured",
+      "**Cloud provider(s)**: None configured",
+      "**Repository visibility**: private (confirmed via gh: mrschedler/QL-G3-Enterprise)",
+      "**Internal sharing / snippet hosting**: None configured — treat public paste/gist services as outside the trust boundary",
+      "**Secrets management**: None configured",
+      "**Default / protected branches**: default branch is `master` (via gh); Protected branches: none listed — Rulesets not queryable here, so this is NOT confirmation of no protection; treat as unverified",
+      "**CI/CD deploy targets**: None configured",
+      "**Network posture**: None configured",
+      "**Host containment**: None configured — assume Claude Code runs on an ordinary developer machine (Dell XPS primary working tree per CLAUDE.md) with open internet",
+      "**Source control**: The trusted repo (github.com:mrschedler/QL-G3-Enterprise.git) and its remote(s) only — no additional orgs configured",
+      "**Trusted internal domains**: None configured",
+      "**Trusted cloud buckets**: None configured",
+      "**Key internal services (closed bench LAN, no production anywhere in this project)**: carrier CM4 pi@192.168.77.226 / pi@169.254.31.5 / pi@172.31.31.5 (runs g3-broker + g3-relay), AR300 OpenWrt USB/IP server root@192.168.77.1 reached through the Jetson matt@192.168.0.45 (nested ssh hop is routine), build host Pi 5 192.168.0.88, Unraid `deepthought`. ssh with sudo, file writes, systemd unit installs, config edits and reboots on these hosts are routine lab operations; every install states a one-line rollback first.",
+      "**Bench tooling**: bench/*.sh, bench/*.py and client/*.py are measurement and install scripts (version_gate.sh, quick_gate.sh, run_*_experiment.sh, session_start.sh, cm4.sh, uart_reader.py, paused_reader.py). None of them deploys to production; they run serial-port traffic and write CSVs under artifacts/. `version_gate.sh` is a 75-second measurement, not a deploy.",
+      "**Release tags**: git tags `prod/v0.1.0-NN` mark bench-gated builds in this private repo; they are NOT deployment targets and the `prod` sensitive-target heuristic does not apply to them. Pushing those tags, `git ls-remote`, and fast-forwarding `exp/*` branches to `master` are routine.",
+      "**Agents**: spawning the repo's own agent types (bench-operator, chain-investigator, implementer, bench-scribe, general-purpose) with ssh/sudo/reboot instructions for the hosts above is routine director work.",
+      "**Internal package registry**: None configured",
+      "**Sensitive data locations & audiences**: any file or store holding personal data, confidential business data, credentials, regulated data, or similarly sensitive material; preserve exact handles when known and share only with audiences cleared at the [named+specifics] bar",
+      "**Data retention / declassification**: None configured",
+      "**Sensitive remote targets**: any namespace, host, or container whose name carries `prod` or `production` as a whole word or name segment (hyphen/underscore/dot-delimited — e.g. matches `prod-db`, not `producer`)",
+      "**Protected deployment namespaces / environments**: None configured — fall back to the Sensitive remote targets heuristic",
+      "**Protected IaC scopes**: IAM, RBAC, networking, quota, and node-pool resources; anything whose name or tag carries `prod` or `production` as a whole word or name segment",
+      "### User-specific",
+      "**Primary use of Claude Code**: software development (hardware/firmware/bench engineering)",
+      "**Trusted repo**: github.com:mrschedler/QL-G3-Enterprise.git (this repo's working directory and its configured remote), confirmed private",
+      "**Org-specific CLIs**: None configured",
+      "**routine under <user>/ prefix**: none identified"
+    ],
+    "allow": [
+      "Bash(ssh pi@192.168.77.*) — bench carrier, closed lab LAN; sudo/file writes/reboot are routine",
+      "Bash(ssh -o*pi@192.168.77.*) — same host, with ssh options",
+      "Bash(ssh pi@169.254.31.5*) — bench carrier over the USB adapter link",
+      "Bash(ssh -o*pi@169.254.31.5*) — same, with ssh options",
+      "Bash(ssh pi@172.31.31.5*) — bench carrier, wlan maintenance address",
+      "Bash(ssh matt@192.168.0.45*) — Jetson hop to the AR300 (nested ssh root@192.168.77.1 is routine)",
+      "Bash(ssh deepthought*) — Unraid, home infra",
+      "Bash(bash bench/*) — bench measurement and install scripts (this repo)",
+      "Bash(python bench/*) — bench measurement scripts (this repo)",
+      "Bash(python client/*) — client-side traffic tests (this repo)",
+      "Bash(git push*) — private solo repo; branches, tags and exp/*:master fast-forwards are routine",
+      "Bash(git ls-remote*) — read-only",
+      "Bash(git archive*) — used to stage trees onto bench hosts over ssh"
+    ],
+    "soft_deny": [
+      "$defaults",
+      "Bash(bench/cm4.sh broker-restart:*) in this repo — mutating carrier verb requiring explicit per-dispatch authorisation, not a standing allow",
+      "Bash(bash bench/run_functional_gate.sh*) in this repo — legacy gate script distinct from the version gate, evidence shows risk of accidental use"
+    ]
+  },
   "mcpServers": {
     "playwright": {
       "command": "npx",
