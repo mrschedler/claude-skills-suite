@@ -29,12 +29,22 @@ child process inherits the launcher env.
 | Claude work | `claude-work` | `dell-xps-work` | `/monitor-interagent` → `INTERAGENT_MACHINE=dell-xps-work bash /c/dev/claude-skills-suite/hooks/interagent-monitor-poll.sh 5` |
 | Grok TUI | `grok-agent` | `dell-xps-grok` | `/monitor-interagent` → PowerShell: `$env:INTERAGENT_MACHINE='dell-xps-grok'; & 'C:\Program Files\Git\bin\bash.exe' -lc '/c/dev/claude-skills-suite/hooks/interagent-monitor-poll.sh 5'` |
 | Grok, no TUI | `interagent-dispatch.sh` | `dell-xps-grok` | Do **not** also arm this skill (race on claim). Dispatcher is the watcher. |
+| 2nd session, same name (helper) | any of the above | same name | Same command as your row. Seen-state is per session (see below), so nothing extra is needed. Set `INTERAGENT_SESSION=<unique>` only for an in-process teammate that arms its own monitor. |
 
 On skip: same suffixes (`skip`, `skip-work`, `skip-grok`). Test without arming:
 `INTERAGENT_MACHINE=<your name> bash /c/dev/claude-skills-suite/hooks/interagent-monitor-poll.sh --once`.
 
 Wrong name in the command = you watch someone else's inbox (work/Grok draining
 personal Claude is the failure mode). After arming, say the name you are watching.
+
+**Seen-state is per session, not per name.** Every session whose routing matches
+gets its own wake event, even when another session with the same name has already
+seen the message. The key is `$INTERAGENT_SESSION`, else Claude Code's
+`$CLAUDE_CODE_SESSION_ID` (stable across re-arms), else the poller's parent pid
+plus start time (a fresh key per arm, so pending mail is re-announced once after a
+re-arm). Check which file you are on with `--status`. A line tagged `[self]` was
+sent under your own name: ignore it if THIS session posted it, but read it if a
+same-name sibling (e.g. your director) did.
 
 ## Disarm path (run this first if asked to stop)
 
@@ -67,9 +77,9 @@ interagent"):
    Description: `interagent inbox (project=<PROJECT>)`, `persistent: true`.
 
    The script polls the `interagent_assignments` table over SSH (`ssh deepthought`
-   → `pgvector`), dedupes against a per-machine+project seen-file, and emits one line
+   → `pgvector`), dedupes against a per-SESSION seen-file, and emits one line
    per NEW pending message routed here (to this machine or `any`, tagged for this
-   project or untagged broadcast).
+   project or untagged broadcast). Same rows as `inbox`, minus other projects' mail.
 
 4. **Confirm to the user:** what's being watched (machine + project), the interval,
    and that "stop monitoring" disarms it.
@@ -79,6 +89,12 @@ interagent"):
 Each emitted line is a chat event that wakes this session. When it fires:
 
 1. **Read once:** `interagent_call > inbox {machine: <MACHINE>}`.
+   - `INTERAGENT new #<id> [...] [self] from <you>` = sent under your own name. If
+     this session posted it, do nothing. Otherwise it is from a same-name sibling
+     and routes like any other message.
+   - `INTERAGENT poller ERROR: <reason>` = the query failed (at most one line per
+     10 min). The watch is still armed but blind: read `inbox` by hand, tell the
+     user, and fix the cause (usually SSH to deepthought).
 2. **Apply routing** (see README table):
    - tagged `{type:"project", id:<this project>}` or addressed to this session →
      surface **and** `claim`.
@@ -99,3 +115,9 @@ Each emitted line is a chat event that wakes this session. When it fires:
   human — not part of this agent-to-agent path. Only use it if the user asks to be
   pinged personally.
 - Test the poller without arming: `INTERAGENT_MACHINE=<your name> bash /c/dev/claude-skills-suite/hooks/interagent-monitor-poll.sh --once`.
+  `--once` from your own shell shares your session's seen-file (same
+  `CLAUDE_CODE_SESSION_ID`), so it will consume events your armed monitor would have
+  shown. Add `INTERAGENT_SESSION=test-<anything>` for a throwaway check.
+- `--status` prints the session key, the seen-file in use, its id count, and the
+  other sessions' files for the same name and project. It is read-only.
+- Offline tests: `bash /c/dev/claude-skills-suite/tests/interagent-monitor-poll.test.sh`.

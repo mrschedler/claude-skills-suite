@@ -124,8 +124,20 @@ Monitor-driven background process — so it is allowed to do network. It reads t
 the simplest path needing no gateway change. This is the clean home for the
 network call the hook is forbidden from making: hook reads local state, poller
 bridges gateway → session. Project routing + new-vs-seen dedup are done in the
-poller (a non-synced seen-file per machine+project); test it without arming via
-`bash interagent-monitor-poll.sh --once`.
+poller; test it without arming via `bash interagent-monitor-poll.sh --once`
+(`--status` shows the seen-file in use).
+
+**Seen-state is per session (2026-09-25).** The seen-file lives at
+`%LOCALAPPDATA%/claude-interagent/seen/<machine>-<project>-<sessionkey>.txt`.
+The key is `$INTERAGENT_SESSION`, else `$CLAUDE_CODE_SESSION_ID`, else the
+poller's parent pid plus start time. The old per-machine+project file let the
+first of two same-name sessions swallow every event for the other (#636). A new
+session seeds once from the old `seen-<machine>-<project>.txt`, which is no longer
+written. Files idle 7 days are pruned. Mail sent under the session's own name is
+emitted with a `[self]` marker, never suppressed. A failed query emits one
+`INTERAGENT poller ERROR:` line per 10 minutes instead of staying silent. Grok's
+`interagent-dispatch.sh` keeps its own seen-file under `grok-interagent/` and
+is unaffected.
 
 ## Human notification (separate layer, not agent-to-agent)
 
