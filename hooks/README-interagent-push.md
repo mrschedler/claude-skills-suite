@@ -69,6 +69,23 @@ use the same string the receiver derives.
 > `{type:"session", id:<session_id>}` ref (the `session_id` is what
 > `coordination_call > register_session` records) to disambiguate.
 
+## Agent names (who watches which inbox)
+
+Inbox is **agent-keyed**. Launchers set `$INTERAGENT_MACHINE`; the poller and
+`inbox {machine}` must use that name. Arm-command copy-paste:
+`skills/monitor-interagent/SKILL.md` (setup table). Addressing:
+`skills/interagent/SKILL.md`.
+
+| Launch | Name | Idle watcher |
+|--------|------|----------------|
+| `claude` | `dell-xps` | `/monitor-interagent` (poller, no extra env) |
+| `claude-work` | `dell-xps-work` | `/monitor-interagent` with `INTERAGENT_MACHINE=dell-xps-work` in the poller command |
+| `grok-agent` | `dell-xps-grok` | `/monitor-interagent` with `INTERAGENT_MACHINE=dell-xps-grok` in the poller command |
+| `interagent-dispatch.sh` | `dell-xps-grok` | unattended; do not also arm `/monitor-interagent` |
+
+If you send Grok a task, arm **your** watcher or you will not see the reply
+until the next human turn.
+
 ## Command vocabulary (what Matt says → what happens)
 
 | Matt says | Action | Mechanism |
