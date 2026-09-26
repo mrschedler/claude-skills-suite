@@ -1,0 +1,12 @@
+{
+  "_comment": "route_task state shape, verbatim from jev-architecture-brief.md section 5.2. facts are regex and flag checks done in code before this call is made, never asked of Jev. Briefs touching lan-only or patent material are refused by the gateway's egress policy before reaching this state.",
+  "task_brief": "<the prompt the director is about to send, up to 6,000 chars>",
+  "project": "memory-system",
+  "facts": {
+    "matt_named_a_model": null,
+    "brief_mentions_shared_infra_paths": true,
+    "brief_mentions_remote_or_server_ops": false,
+    "prior_attempt_failed": false,
+    "task_writes_to_repo": true
+  }
+}

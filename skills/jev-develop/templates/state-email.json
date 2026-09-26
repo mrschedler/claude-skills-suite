@@ -1,0 +1,31 @@
+{
+  "_comment": "Email triage state shape, verbatim from jev-architecture-brief.md section 4.2. Header facts and sender_history come from code, never from the message body, so the body cannot forge them.",
+  "desk": "quicklinks",
+  "owner": "Matt Schedler runs QuickLinks Technologies, which sells <one line>. This mailbox is the QuickLinks desk.",
+  "message": {
+    "from_name": "Dana Ortiz",
+    "from_domain": "acme-industrial.com",
+    "subject": "PO 4471 revised quantities",
+    "untrusted_body": "<1,500 chars max, written by the sender, stripped and redacted>"
+  },
+  "facts": {
+    "addressed_to_matt_directly": true,
+    "has_list_unsubscribe": false,
+    "auto_submitted_header": false,
+    "reply_to_domain_differs_from_sender": false,
+    "sender_authentication_passed": true,
+    "sender_domain_is_known_customer": true,
+    "sender_domain_is_free_mail": false,
+    "link_domains_differ_from_sender": false,
+    "has_attachment": true,
+    "attachment_kinds": ["pdf"],
+    "has_calendar_invite": false,
+    "is_reply_in_thread_matt_started": true
+  },
+  "sender_history": {
+    "seen_before": true,
+    "matt_has_replied_before": true,
+    "matt_usually_files_to": "Customers/Orders",
+    "past_corrections": ["newsletter corrected to supplier"]
+  }
+}

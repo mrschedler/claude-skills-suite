@@ -1,0 +1,88 @@
+{
+  "battery": "route_task",
+  "version": 1,
+  "state_schema_ref": "templates/state-task.json",
+  "source": "jev-architecture-brief.md section 5.3, criteria adapted from jcm-router, switchboard, and learn-jev 08",
+  "note": "This preset is advisory, not acting. Its output feeds the director's dispatch decision through the code rules in jev-architecture-brief.md section 5.4 (also in references/routing-roster.md), which are not encoded here because they combine several answers, a hard human keyword/path list, and Matt's explicit instructions. Never treat one answer from this battery as a final routing decision by itself.",
+  "questions": {
+    "engine": {
+      "type": "choice",
+      "instructions": "What kind of worker should handle the task in `task_brief`?",
+      "criteria": {
+        "code": "The answer can be computed exactly: a lookup, count, date comparison, regex, file listing, or a script with known steps.",
+        "jev": "A single snap judgment over information already in hand: pick from a known list, rate on a described scale, or answer yes or no, with no text to write.",
+        "llm_agent": "Reading, writing or editing code or prose, multi-step investigation, or synthesis across sources.",
+        "human": "Needs Matt: a preference, a spend, credentials, anything sent in Matt's name, deletes, server or secret operations."
+      }
+    },
+    "agent": {
+      "type": "choice",
+      "instructions": "If an AI agent does the task in `task_brief`, which agent fits? Pick the cheapest that would reliably get it right. Judge difficulty and blast radius, not the length of the brief.",
+      "criteria": {
+        "sonnet": "Everyday work with a clear scope: implement to a spec, write or fix tests, scribe or summarize, run a checklist review, gather facts from known files.",
+        "opus": "Judgment: ambiguous goals, design trade-offs, subtle or cross-file bugs, security-sensitive code, adversarial verification, reviewing another agent's work.",
+        "grok": "Judgment that benefits from an independent second model or live X and social search, where minutes of interagent latency are acceptable.",
+        "director": "The task needs this conversation's accumulated context and would take longer to brief than to do."
+      },
+      "note": "Designed to be exhaustive within this workspace's current agent roster: director is the catch-all when the task does not cleanly fit a delegated agent. Revisit if a fifth agent type is ever added."
+    },
+    "effort": {
+      "type": "choice",
+      "instructions": "How much deliberation does the task in `task_brief` need before acting? Pick the lowest level at which a careful engineer would still trust the result.",
+      "criteria": {
+        "low": "Quick one-pass answer.",
+        "medium": "Some deliberation; a single reasonable check before acting.",
+        "high": "Careful deliberation; verify before finishing.",
+        "max": "Correctness dominates cost and time."
+      },
+      "note": "An ordered scale intended to cover the full range from least to most deliberation; no other option is needed."
+    },
+    "is_routine": {
+      "type": "noul",
+      "instructions": "Would two competent engineers given `task_brief` produce essentially the same result?"
+    },
+    "context_sufficient": {
+      "type": "noul",
+      "instructions": "Does `task_brief` contain enough context for someone who has not seen this conversation to start work?"
+    },
+    "irreversible": {
+      "type": "noul",
+      "instructions": "Would carrying out `task_brief` change something that reverting a commit cannot undo: remote state, sent messages, deleted data, server or secret changes?"
+    },
+    "harness": {
+      "type": "choice",
+      "instructions": "Which check should confirm the result of `task_brief` before it is trusted?",
+      "criteria": {
+        "none": "No verification step is warranted.",
+        "unit_tests": "Existing or new automated tests can confirm this.",
+        "api_tester": "A live request against a real endpoint can confirm this.",
+        "browser_review": "A visual or interactive check in a browser can confirm this.",
+        "verifier_agent": "An adversarial review of the change or claim is warranted.",
+        "matt_review": "Only Matt can confirm this is right.",
+        "other": "None of the above fits the kind of check this task needs."
+      }
+    },
+    "importance": {
+      "type": "score",
+      "instructions": "How much depends on the task in `task_brief`?",
+      "criteria": [
+        "Nice to have; no one is waiting.",
+        "Part of the current sprint.",
+        "Blocks Matt or a live system today."
+      ],
+      "note": "Used only in combination with the code rules in references/routing-roster.md; never gates a decision alone."
+    }
+  },
+  "bands": {
+    "note": "route_task has no simple threshold-to-action table like email_triage; its answers feed the numbered code rules in jev-architecture-brief.md section 5.4. See references/routing-roster.md for the full rule set (hard human list, never-downgrade rule, Sonnet-default with Opus upgrade conditions, Grok gate, fail-open default).",
+    "always_human_regardless_of_answers": [
+      "sends in Matt's name",
+      "deletes",
+      "server or secret operations",
+      "irreversible >= 0.50 (adds to this list, never subtracts)"
+    ],
+    "never_downgrade_llm_to_jev_or_code_unless": "engine.pmax >= 0.85 AND is_routine >= 0.80",
+    "never_route_to": "the director's own model for a subagent dispatch",
+    "on_unavailable": "returns abstain, not a recommendation; the protocol step calling route_task supplies today's static default rule, not this preset"
+  }
+}

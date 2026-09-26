@@ -1,0 +1,44 @@
+{
+  "_comment": "A filled example of a decide.evaluate call for a novel, ad hoc purpose that has not graduated to a preset. This example answers one of the charter's listed decisions: whether an interagent message is this session's to claim. Built by following SKILL.md Phase 3's five steps. This is illustrative, not a shipped battery -- do not treat its thresholds as fitted.",
+  "purpose": "interagent-claim-adhoc",
+  "state": {
+    "message": {
+      "from_identity": "grok-social-signal",
+      "subject": "Retention comparison follow-up",
+      "untrusted_body": "<first 1,500 chars of the message body, stripped>",
+      "addressed_to_identity": "memory-system-director"
+    },
+    "session": {
+      "current_project": "memory-system",
+      "current_topic": "jev application project",
+      "has_open_thread_with_sender": true
+    },
+    "facts": {
+      "matches_a_topic_this_session_is_working": true,
+      "already_claimed_by_another_identity": false,
+      "is_a_status_note_not_a_question": false
+    }
+  },
+  "questions": {
+    "disposition": {
+      "type": "choice",
+      "instructions": "What should this session do with the message in `message`?",
+      "criteria": {
+        "claim": "This session is the right one to read and act on this message now; it matches work already in progress here.",
+        "surface": "Someone should see this, but it does not match this session's current work closely enough to claim it.",
+        "skip": "No action is needed: a status note, something already handled, or addressed to a different identity.",
+        "other": "None of the above fits: the message needs a response this option set does not anticipate."
+      }
+    },
+    "is_urgent": {
+      "type": "noul",
+      "instructions": "Does the message ask for something that should happen before this session's current task finishes?"
+    }
+  },
+  "thresholds": {
+    "disposition": {"act": 0.80, "review": 0.55},
+    "is_urgent": {"act": 0.70, "review": 0.50}
+  },
+  "source_refs": ["interagent:message:2026-09-26-0731"],
+  "_reading_the_response": "The response's calibrated flag will be false on first use of this purpose. Treat disposition.band and is_urgent.band as unverified defaults, drive only a reversible action (claim or surface, never an automatic reply) from them, and call decide.log_outcome once you know whether the disposition was right."
+}
