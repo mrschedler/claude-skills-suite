@@ -187,16 +187,16 @@ clears even a low bar. Full list and evidence: `references/jaggedness-1.13.md`.
 
 ### Phase 9: Respect egress, calibration state, and pinning
 
-The gateway refuses lan-only, patent, and TAS material and any mailbox or folder outside its
+The gateway refuses lan-only material, patent material (sender domain, tag, name, and phrase
+markers, never the bare word "patent"), TAS material, and any mailbox or folder outside its
 allow list, with no override from the caller; secrets, one-time codes, and account numbers are
-redacted, not refused. Both checks run on every call, including a raw ad hoc `evaluate`'s own
-text, not just on records it was built from. Do not try to route around a refusal by
-pre-summarizing restricted content yourself. Pin the model id you were given; never request an
+redacted, not refused. All of this runs on every call, including a raw ad hoc `evaluate`'s own
+text. Do not try to route around a refusal by pre-summarizing restricted content yourself. Pin the model id you were given; never request an
 alias like `jev-latest`, whose target moves without notice. Allowed model ids live in
 `policy/decide-model-allowlist.json`, hashed and loaded at startup, never in code; an unlisted
 echoed id or a hash mismatch puts the module in mock until a reviewed policy change. The module
-also verifies zero data retention with the provider at startup; until that succeeds it stays in
-mock mode and returns `unavailable` rather than send real content anywhere.
+also verifies zero data retention at startup; until verified it stays in mock and returns
+`unavailable` rather than send real content anywhere.
 
 `unavailable` or `refused_egress`: do not act, send to review (advisory presets such as
 `route_task` return `abstain` rather than a fabricated recommendation; the protocol step calling

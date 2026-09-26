@@ -12,17 +12,33 @@ Evaluated in this order on every call, including a raw ad hoc `evaluate`. Any hi
 `action: refused_egress`, distinct from `unavailable`, and logs only a reason code, never the
 content:
 
-1. **TAS mailboxes and material:** always refused.
+1. **TAS mailboxes and material:** refused whenever a TAS mailbox is on the allow list. The TAS
+   marker list only needs arming once a TAS mailbox actually reaches the allow list; none does
+   today, so this rule has no mailbox to apply to yet, though the check itself is always present
+   in code and fires the moment one is added (decision 44).
 2. **Mailbox or folder not on the allow list:** refused.
 3. **Records classified `lan-only`:** refused (routes to a local provider once one exists,
    never to a hosted vendor). This check runs on the raw `state` and `questions` text itself for
    every caller, not only on records reached through `source_refs`. An ad hoc `evaluate` call
    cannot bypass it by typing restricted content inline instead of citing a record.
-4. **Patent material** (by tag, project slug, or marker regex): refused (same local-only
-   routing once available), and likewise checked against the raw text itself, not only against
-   cited records.
+4. **Patent material:** refused (same local-only routing once available), matched before the
+   body is even read against: attorney and firm sender domains (`rklpatlaw.com`, `uspto.gov`),
+   checked across the From, Reply-To, Sender, and Return-Path headers; the patent tag and the two
+   G3 project slugs; attorney names (Morton Rosenberg, Chris Reaves, RKL), matched whole-word; and
+   patent-work phrases (patent application, office action, claim 1, uspto, provisional
+   application, provisional patent, prosecution history, prior art, non-provisional, pct/, 35
+   u.s.c, what is claimed, inventor's notebook, invention disclosure) plus a claim-list pattern.
+   The bare word "patent" is deliberately not a marker: it appears too often in ordinary
+   QuickLinks mail to use alone. Checked against the raw text itself, not only cited records, the
+   same as rule 3.
 5. **Redaction:** secrets, one-time codes, and card/account numbers are stripped from anything
    that does pass the first four checks, before it leaves the gateway.
+
+On a message these markers do not refuse, `email_triage` still sets a `mentions_patent` boolean
+fact from the same phrase and name list, computed over decoded copies of the body as well as the
+raw text so a base64 or quoted-printable encoded reference is not missed. This is a triage fact,
+not a refusal. Grokbot's own mailbox reads are unaffected either way: Matt has ruled that patent
+correspondence is not shielded from grokbot, only from the vendor call.
 
 Independently of the four record- and classification-based checks above, the `decide` module
 runs its own deterministic, byte-level marker screen over every call's `state` and `questions`,
@@ -32,6 +48,15 @@ identity, including `matt-interactive`.
 
 These checks apply to every tool and every caller, including a `matt-interactive` ad hoc
 `evaluate` call typed directly by a Claude session. There is no grant that bypasses them.
+
+## Marker source: files today, a config store in Phase 1
+
+In Phase 0, every marker above lives in a policy file the gateway loads at startup, and the file
+is authoritative. Phase 1 moves the hot half (phrases, attorney names, TAS org names, category
+sets, thresholds) into a versioned Postgres config store; the floor half (identity-based markers
+and any file-only key) stays in files and needs a deploy to change, even after Phase 1 ships.
+Treat `decide.config_get` as the eventual source of truth and the policy files as the floor and
+fallback. Tool details: `references/api-contract.md`.
 
 ## Fail-closed semantics
 

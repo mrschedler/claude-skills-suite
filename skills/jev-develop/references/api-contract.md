@@ -77,7 +77,27 @@ distinct and never overridable by the caller (`references/egress-rules.md`).
 - Cache is off for `evaluate` and `route_task` (states rarely repeat); on for `email_triage`
   with a 7-day TTL.
 
-## 2. The underlying vendor wire contract, for context
+## 2. Phase 1: the editable config store (`decide.config_get`, `decide.config_review`, `decide.config_set`)
+
+Source: decision 43. Not shipped in Phase 0; policy files are authoritative until it lands.
+
+Phase 0 tunables (patent and TAS markers, attorney names, category sets, thresholds) live in
+policy files the gateway reads at startup. Phase 1 moves the **hot** half of that set, phrases,
+attorney names, TAS org names, category sets, and thresholds, into a versioned Postgres store:
+
+- `decide.config_get`: reads the current value of a config key. Granted to `grokbot-assistant`,
+  `claude-assistant`, and `matt-interactive`.
+- `decide.config_review`: reads a key's version history and pending changes, for auditing before
+  or after a `config_set`. Same grant as `config_get`.
+- `decide.config_set`: writes a new version of a config key. `matt-interactive` only; no scoped
+  identity may write its own thresholds.
+
+The **floor** half, identity-based markers (which mailboxes, grants, and identities exist) and
+any key marked file-only, stays in policy files regardless of Phase 1, and changing it needs a
+deploy. Once Phase 1 ships, treat `decide.config_get` as the source of truth for hot keys and the
+policy files as the floor and the fallback if the config store itself is unavailable.
+
+## 3. The underlying vendor wire contract, for context
 
 Source: `official-docs-reference.md` section 1, as documented by TypeSafe (docs.typesafe.ai)
 for `POST https://api.typesafe.ai/v1/systemone`, and mirrored by OpenRouter's

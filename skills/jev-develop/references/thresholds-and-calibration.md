@@ -20,6 +20,13 @@ likely-wrong so cheap automation is safe), not for reading probabilities as lite
 odds. Gate on the top band only; never threshold a Score's numeric output as if it were a
 probability.
 
+## First live batch
+
+The first live use of any battery is a 20-email shadow batch, each message labeled by hand via
+`decide.log_outcome`, not by any automated rule. Below 50 labels there is no calibration fit at
+all: the first batch's 20 labels feed the label count but do not, by themselves, fit anything, so
+every band stays `review`/`abstain` until enough further labels accumulate.
+
 ## Fitting a threshold with labels
 
 - Budget 50-100 `decide.log_outcome` labels per gated question before trusting a fitted
