@@ -39,6 +39,7 @@ checked=0
 ok=0
 repaired=0
 failed=0
+skipped=0
 detail=""
 
 add_detail() {
@@ -47,8 +48,19 @@ add_detail() {
 
 for entry in "${LINKS[@]}"; do
   IFS='|' read -r link target type <<< "$entry"
-  checked=$((checked+1))
   name=$(basename "$link")
+
+  # That app is not installed on this machine: its whole config root is absent
+  # (e.g. no ~/.grok on a machine without Grok). There is nothing to wire, so
+  # skip quietly rather than report a failure every single session. A status
+  # line that permanently reads "failed=4" is a line nobody reads any more --
+  # which is how a genuinely unwired profile stayed hidden (Qdrant 624d3345).
+  if [[ ! -d "$(dirname "$link")" ]]; then
+    skipped=$((skipped+1))
+    continue
+  fi
+
+  checked=$((checked+1))
 
   # Target must exist before we create a link to it. Missing target means
   # something deeper is wrong (skills-suite moved or not cloned yet).
@@ -113,10 +125,13 @@ for entry in "${LINKS[@]}"; do
   fi
 done
 
+skip_note=""
+[[ $skipped -gt 0 ]] && skip_note=" skipped=${skipped}"
+
 if [[ $repaired -eq 0 && $failed -eq 0 ]]; then
-  echo "symlinks_ok=${ok}/${checked}"
+  echo "symlinks_ok=${ok}/${checked}${skip_note}"
 else
-  echo "symlinks_ok=${ok}/${checked} repaired=${repaired} failed=${failed} detail=${detail}"
+  echo "symlinks_ok=${ok}/${checked} repaired=${repaired} failed=${failed}${skip_note} detail=${detail}"
 fi
 
 exit 0
