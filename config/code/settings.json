@@ -44,10 +44,12 @@
       "Bash(python client/test_spi_ping.py*)",
       "Bash(python client/test_all_slots.py*)",
       "Bash(python -m pytest client/test_g3_broker.py*)",
-      "Bash(python client/test_g3_broker.py*)"
+      "Bash(python client/test_g3_broker.py*)",
+      "Bash(ssh deepthought '/mnt/raid1_pool/appdata/mcp-gateway/deploy.sh:*)",
+      "Bash(ssh deepthought /mnt/raid1_pool/appdata/mcp-gateway/deploy.sh:*)"
     ]
   },
-  "model": "claude-fable-5-1[1m]",
+  "model": "opus",
   "hooks": {
     "SessionStart": [
       {
@@ -161,6 +163,11 @@
     ]
   },
   "effortLevel": "high",
+  "modelSettings": {
+    "claude-opus-5-5": {
+      "effortLevel": "high"
+    }
+  },
   "tui": "fullscreen",
   "skipDangerousModePermissionPrompt": true,
   "skipWorkflowUsageWarning": true,
@@ -168,6 +175,27 @@
   "switchModelsOnFlag": false,
   "agentPushNotifEnabled": true,
   "autoMode": {
+    "allow": [
+      "Bash(ssh pi@192.168.77.*) — bench carrier, closed lab LAN; sudo/file writes/reboot are routine",
+      "Bash(ssh -o*pi@192.168.77.*) — same host, with ssh options",
+      "Bash(ssh pi@169.254.31.5*) — bench carrier over the USB adapter link",
+      "Bash(ssh -o*pi@169.254.31.5*) — same, with ssh options",
+      "Bash(ssh pi@172.31.31.5*) — bench carrier, wlan maintenance address",
+      "Bash(ssh matt@192.168.0.45*) — Jetson hop to the AR300 (nested ssh root@192.168.77.1 is routine)",
+      "Bash(ssh deepthought*) — Unraid, home infra",
+      "Bash(bash bench/*) — bench measurement and install scripts (this repo)",
+      "Bash(python bench/*) — bench measurement scripts (this repo)",
+      "Bash(python client/*) — client-side traffic tests (this repo)",
+      "Bash(git push*) — private solo repo; branches, tags and exp/*:master fast-forwards are routine",
+      "Bash(git ls-remote*) — read-only",
+      "Bash(git archive*) — used to stage trees onto bench hosts over ssh",
+      "Bash(ssh deepthought*/mnt/raid1_pool/appdata/mcp-gateway/deploy.sh*) — pre-approved MCP gateway deploy on Matt's home server (Matt standing rule 2026-09-27: 'deploy any gateway build that passes its tests, no need to ask'); the script only deploys pushed commits and tags a rollback first"
+    ],
+    "soft_deny": [
+      "$defaults",
+      "Bash(bench/cm4.sh broker-restart:*) in this repo — mutating carrier verb requiring explicit per-dispatch authorisation, not a standing allow",
+      "Bash(bash bench/run_functional_gate.sh*) in this repo — legacy gate script distinct from the version gate, evidence shows risk of accidental use"
+    ],
     "environment": [
       "### Org-wide",
       "**Organization**: None configured",
@@ -197,26 +225,6 @@
       "**Trusted repo**: github.com:mrschedler/QL-G3-Enterprise.git (this repo's working directory and its configured remote), confirmed private",
       "**Org-specific CLIs**: None configured",
       "**routine under <user>/ prefix**: none identified"
-    ],
-    "allow": [
-      "Bash(ssh pi@192.168.77.*) — bench carrier, closed lab LAN; sudo/file writes/reboot are routine",
-      "Bash(ssh -o*pi@192.168.77.*) — same host, with ssh options",
-      "Bash(ssh pi@169.254.31.5*) — bench carrier over the USB adapter link",
-      "Bash(ssh -o*pi@169.254.31.5*) — same, with ssh options",
-      "Bash(ssh pi@172.31.31.5*) — bench carrier, wlan maintenance address",
-      "Bash(ssh matt@192.168.0.45*) — Jetson hop to the AR300 (nested ssh root@192.168.77.1 is routine)",
-      "Bash(ssh deepthought*) — Unraid, home infra",
-      "Bash(bash bench/*) — bench measurement and install scripts (this repo)",
-      "Bash(python bench/*) — bench measurement scripts (this repo)",
-      "Bash(python client/*) — client-side traffic tests (this repo)",
-      "Bash(git push*) — private solo repo; branches, tags and exp/*:master fast-forwards are routine",
-      "Bash(git ls-remote*) — read-only",
-      "Bash(git archive*) — used to stage trees onto bench hosts over ssh"
-    ],
-    "soft_deny": [
-      "$defaults",
-      "Bash(bench/cm4.sh broker-restart:*) in this repo — mutating carrier verb requiring explicit per-dispatch authorisation, not a standing allow",
-      "Bash(bash bench/run_functional_gate.sh*) in this repo — legacy gate script distinct from the version gate, evidence shows risk of accidental use"
     ]
   },
   "mcpServers": {
