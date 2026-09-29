@@ -12,7 +12,8 @@ echo "cwd=$(pwd)"
 echo "git_root=${GIT_ROOT:-none}"
 
 # Stale-tree guard: warns when Syncthing is down/behind or the project has sync conflicts.
-[[ -x /c/dev/claude-skills-suite/hooks/sync-health.sh ]] && \n  /c/dev/claude-skills-suite/hooks/sync-health.sh "$GIT_ROOT"
+[[ -x /c/dev/claude-skills-suite/hooks/sync-health.sh ]] && \
+  /c/dev/claude-skills-suite/hooks/sync-health.sh "$GIT_ROOT"
 
 # Claude Desktop/Code updates periodically overwrite our config symlinks
 # with regular files (atomic write pattern). Detect and auto-repair here
