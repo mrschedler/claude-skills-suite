@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SessionStart hook — fast local context snapshot.
-# Transport-agnostic: no SSH, no MCP, no network calls.
+# Transport-agnostic: no SSH, no MCP; only local calls (sync-health.sh reads 127.0.0.1 Syncthing).
 # Output is consumed by agents, not humans.
 # Always exits 0.
 
@@ -10,6 +10,9 @@ GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
 
 echo "cwd=$(pwd)"
 echo "git_root=${GIT_ROOT:-none}"
+
+# Stale-tree guard: warns when Syncthing is down/behind or the project has sync conflicts.
+[[ -x /c/dev/claude-skills-suite/hooks/sync-health.sh ]] && \n  /c/dev/claude-skills-suite/hooks/sync-health.sh "$GIT_ROOT"
 
 # Claude Desktop/Code updates periodically overwrite our config symlinks
 # with regular files (atomic write pattern). Detect and auto-repair here
