@@ -22,9 +22,27 @@ args — `machine` arrives as undefined. This bit multiple sessions. Always nest
 (Same nesting applies to `vault_call` and `redis_call`.)
 
 ## Scope resolution
-- `MACHINE` = `machine:` line from `/c/dev/.machine-id` (e.g. dell-xps, skip).
+- `MACHINE` = `$INTERAGENT_MACHINE` if set (per-profile launchers, e.g. `dell-xps-work` for the work account, `dell-xps-grok` for Grok), else the `machine:` line from `/c/dev/.machine-id` (e.g. dell-xps, skip). The UserPromptSubmit hook prints the resolved name as `machine=`; use that.
 - `PROJECT` = `git rev-parse --show-toplevel` basename, else cwd basename.
 - Use these for `from`, `machine`, and (via `topic`/`context_refs`) project tagging.
+
+## Agent names on this machine (dell-xps)
+
+Inbox is keyed by **agent name**, not by OS hostname. Send `to` the name below; set `from` to **your** name. Keep `thread_id` so replies stay in one conversation.
+
+| Agent | `to` / `from` | How it is launched |
+|---|---|---|
+| Claude Code personal | `dell-xps` | `claude` |
+| Claude Code work | `dell-xps-work` | `claude-work` |
+| Grok Build | `dell-xps-grok` | `grok-agent` (interactive) or `config/grok/interagent-dispatch.sh` (unattended) |
+
+**Assign work to Grok:** `send {to:"dell-xps-grok", from:MACHINE, title, prompt, topic, thread_id, context_refs:[{type:"project", id:"<git-root basename>"}]}`. Grok's unattended dispatcher only picks up `to=dell-xps-grok` (not `any` broadcasts). Tag the project so the worker starts in the right cwd.
+
+**Reply / assign back:** `send {to:<original from_agent>, from:MACHINE, thread_id:<same>, topic:<same>, title:"Re: …", prompt}` then `complete {id, result}`. Close the loop on the **agent** side, not only to the human.
+
+**See the reply without Matt relaying:** sending is not enough. Arm **your** idle watcher (`/monitor-interagent`) so Grok's `send` back to you wakes this session. Copy-paste arm command for your name: `skills/monitor-interagent/SKILL.md` setup table. If you launched `claude-work` or `grok-agent`, the poller command must set `INTERAGENT_MACHINE` or you will watch the personal Claude inbox.
+
+On skip, the same suffixes apply (`skip`, `skip-work`, `skip-grok` if that launcher exists).
 
 ## The thin-read model (why this exists)
 `inbox` and `list` return **headlines only** (id, kind, topic, title, status, to, from,
@@ -55,7 +73,7 @@ then `get` the one you care about.
   Encourage one whenever the user implies a subject — it's what makes the store auditable.
 - **kind**: `msg` (default, expires per ttl) vs `todo` (durable, never expires). Use `todo`
   for "leave this for later / for a future agent."
-- **to**: a machine name (`dell-xps`, `skip`) or `any` (next free agent claims it).
+- **to**: an agent name (`dell-xps`, `dell-xps-work`, `dell-xps-grok`, `skip`) or `any` (next free agent claims it). Do not send Grok work to `dell-xps` — that is the personal Claude session.
 - **ttl_hours**: omit for default (72 for msg); pass `null` to never expire (todo does this
   automatically). To-dos created before v2 used to vanish at 72h — `todo` fixes that.
 - **context_refs**: attach `[{type, id, label}]` pointers to memories/plans/projects when relevant.
@@ -75,7 +93,10 @@ When you have an answer to another agent's question, **close the loop on the age
 → `interagent_call({tool:"todo", params:{title:"Fix server backup cron", prompt:"<details>", from:"dell-xps", topic:"backup"}})`
 
 "check interagent"
-→ `interagent_call({tool:"inbox", params:{machine:"dell-xps"}})` → then `get {id}` on anything relevant.
+→ `interagent_call({tool:"inbox", params:{machine:MACHINE}})` → then `get {id}` on anything relevant.
+
+"send Grok a task and watch for the reply"
+→ `send {to:"dell-xps-grok", from:MACHINE, thread_id, topic, title, prompt, context_refs:[{type:"project", id:PROJECT}]}` then `/monitor-interagent` using the arm command for YOUR name (see monitor-interagent setup table).
 
 "what's the history on the g3-claims topic"
 → `interagent_call({tool:"list", params:{topic:"g3-claims"}})`

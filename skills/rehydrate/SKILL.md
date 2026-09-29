@@ -135,7 +135,7 @@ Calls (skip silently if a call errors — don't fail the whole rehydration):
 - `project_call > list_phases {project_slug}` — active phases. Skip on
   `--no-pipeline`.
 - `interagent_call > inbox {from: <machine_id>}` — cross-machine assignments.
-  Read `C:\dev\.machine-id` for machine_id.
+  machine_id = `$INTERAGENT_MACHINE` if set (per-profile launchers, e.g. `dell-xps-work`), else read `C:\dev\.machine-id`.
 - `coordination_call > register_session {session_id, cwd, project, hostname}`
   — registers this agent so other sessions/machines can see it. Best-effort.
 

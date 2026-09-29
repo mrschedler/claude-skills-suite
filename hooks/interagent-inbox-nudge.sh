@@ -42,8 +42,11 @@ else
   PROJECT=$(basename "$(pwd)")
 fi
 
-# ── Machine name from the non-synced .machine-id (fleet-portable) ──
-MACHINE=$(sed -n 's/^machine:[[:space:]]*//p' /c/dev/.machine-id 2>/dev/null | head -1)
+# ── Agent name: INTERAGENT_MACHINE override (per-profile launchers, e.g. the
+# work-account `claude-work` launcher sets dell-xps-work so the two accounts on
+# one machine can address each other), else the non-synced .machine-id ──
+MACHINE="${INTERAGENT_MACHINE:-}"
+[[ -z "$MACHINE" ]] && MACHINE=$(sed -n 's/^machine:[[:space:]]*//p' /c/dev/.machine-id 2>/dev/null | head -1)
 MACHINE=${MACHINE:-unknown}
 
 # ── Throttle via a local, NON-synced timestamp file ──

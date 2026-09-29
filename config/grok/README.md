@@ -101,9 +101,10 @@ seen-files. Interval default 5s. Each worker: `--max-turns 40 --always-approve
 for MCP prompts; bound the blast radius with max-turns and no-subagents, not
 an empty allowlist (MCP `use_tool` is not a builtin `--tools` id).
 
-Proposed poller fix (do not apply here; hooks are shared):
-`interagent-monitor-poll.sh` SQL drops rows with `ttl_hours IS NULL` (durable
-todos). Dispatcher query includes them.
+Poller SQL (hooks/interagent-monitor-poll.sh) must keep
+`(ttl_hours IS NULL OR created_at > now() - make_interval(hours => ttl_hours))`.
+A bare TTL comparison drops durable todos. Fixed 2026-09-20 after a Grok TUI
+session saw only msgs and missed four todos.
 
 ## Do not enable Grok native memory
 

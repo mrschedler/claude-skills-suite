@@ -44,6 +44,7 @@ When dispatching through the Workflow tool, pass this as a JSON schema
 | infra-debugger | Homelab containers/routes/services broken | opus |
 | db-admin | DB queries, schema, health across PG/Mongo/Redis | sonnet |
 | compact-reviewer | Gap-check a compact file before context clear | sonnet |
+| engineering-manager | Staff tasks FROM the director: grok-4.5 if simple, grok-4.6 if judgment; never inherit | n/a (this IS the dispatcher) |
 
 Add a role when you've improvised essentially the same helper prompt twice.
 Roles define conduct + return format only — project knowledge comes from

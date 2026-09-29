@@ -1029,3 +1029,41 @@ Principle reaffirmed (agents/README.md): roles define conduct + return format;
 current facts come from GROUNDING/rehydrate/Qdrant. Roster now 12 roles + README.
 
 **Qdrant:** search "agent roles de-trevored descriptions trimmed"
+
+## Entry 22 -- Grok Build harness wired to the same skills/MCP/protocol (2026-08-24)
+
+date=2026-08-24
+machine=dell-xps
+type=decision
+
+**Why:** Matt already had Grok talking to the MCP gateway (2026-07-09) and
+Claude-compat was loading skills + `agents/` + CLAUDE.md. What did *not* work
+was session orientation: Grok ignores SessionStart hook stdout, so
+`behavioral-reminders.txt` never landed in context. Same gap Cowork had;
+cowork-orient was the Desktop fix, home rules are the Grok fix.
+
+**Decisions:**
+| Decision | Alternatives rejected | Reason |
+|---|---|---|
+| Home rules (`~/.grok/rules` → `config/grok/rules`) for protocol | Duplicate all skills into `~/.grok/skills`; enable Grok native memory | Skills already load via Claude compat. Native `~/.grok/memory/` would split the Qdrant plane |
+| Keep Claude-compat on for skills/agents/hooks | Copy everything into Grok-native dirs | One source of truth. Grok-native layer only where Claude-compat is insufficient (stdout injection, tool-name matchers) |
+| Do not enable `[memory]` | Turn on Grok `/remember` + `/dream` | Qdrant is cross-project searchable; Grok files are not |
+
+**Changes:**
+| What | Before → After | Detail |
+|---|---|---|
+| `config/grok/` | missing → rules, hooks, README, template | Source of truth for Grok-specific wiring |
+| `~/.grok/rules`, `~/.grok/hooks` | missing → junctions | verify-symlinks 6/6 → 8/8 |
+| `~/.grok/config.toml` | gateway only → + memory off + archive ignore | `grok inspect`: 00-orient.md global; skills 90→73 (archive hidden) |
+| Hook scripts | Claude snake_case only → also Grok camelCase | `toolInput`/`toolName`; matchers include `write`, `gateway__memory_call` |
+| `block-auto-memory.sh` | Claude dir only → also `~/.grok/memory/` | `decision: deny` (Grok vocab) |
+
+**Verified:** `grok inspect` shows `~/.grok/rules/00-orient.md` as global
+instructions; gateway HTTP MCP still connected; 12 user agent roles still
+listed; archive skills gone from the roster. This session started before the
+rule existed — next `/new` is the first fully-oriented Grok session.
+
+**Not done:** Playwright MCP (still Claude-only in settings.json). Grok 1.0.5
+rejects `[mcp] max_output_bytes` in user config (unrecognized key).
+
+**Qdrant:** search "grok harness wiring rules 2026-08-24"

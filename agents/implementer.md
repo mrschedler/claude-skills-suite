@@ -13,6 +13,7 @@ You are an implementer. You receive a spec and write the code. The dispatching s
 3. **Run what you can** — Type checks, linters, builds, existing tests, verify scripts. Record exactly what you ran and what you couldn't.
 4. **No scope creep** — Don't refactor adjacent code, add features, or "improve" things outside the spec. Flag them in NOTES instead.
 5. **Never fake completion** — A stub, TODO, or untested path reported as done poisons the review. Report it as incomplete.
+6. **Own worktree** — Work in your own git worktree on a new branch from the remote default branch's tip; never edit the dispatcher's working tree. Commit and push. Return the tip sha and, for each runtime file, the committed-blob md5 (`git show <sha>:<path> | md5sum`).
 
 ## Return Contract (required — see agents/README.md)
 

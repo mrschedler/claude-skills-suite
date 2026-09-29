@@ -25,4 +25,9 @@ NOTES: [weaknesses found that don't refute the claim but matter]
 RECOMMENDATION: [accept / fix X first / run test Y to settle]
 ```
 
+- If the brief names verdict words (for example INSTALL / INSTALL-WITH-FIXES / BLOCK),
+  use those in STATUS instead of holds / refuted / uncertain.
+- Run the code. A review that only reads is incomplete - state what was executed and
+  what was only reasoned.
+
 A "holds" verdict after real attack is valuable. A "holds" verdict after light reading is sabotage — if you didn't genuinely attack it, say STATUS: uncertain.

@@ -20,8 +20,8 @@ process.stdin.on('data', c => buf += c);
 process.stdin.on('end', () => {
   try {
     const d = JSON.parse(buf);
-    const tn = d.tool_name || d.tool || '';
-    const ti = d.tool_input || d.params || {};
+    const tn = d.tool_name || d.toolName || d.tool || '';
+    const ti = d.tool_input || d.toolInput || d.params || {};
     const sub = (ti && typeof ti === 'object') ? (ti.tool || '') : '';
     process.stdout.write(tn + '|' + sub);
   } catch (e) {
@@ -36,7 +36,7 @@ SUB_TOOL="${EXTRACT#*|}"
 REMINDERS=""
 
 case "$TOOL_NAME" in
-  mcp__gateway__memory_call)
+  mcp__gateway__memory_call|gateway__memory_call)
     case "$SUB_TOOL" in
       delete|update|confirm|get|classify)
         REMINDERS="$REMINDERS\n- memory_call > $SUB_TOOL: param is 'memory_id' (NOT 'id'). Wrong name returns Qdrant PointsSelector 400."
@@ -49,7 +49,7 @@ case "$TOOL_NAME" in
         ;;
     esac
     ;;
-  mcp__gateway__graph_call)
+  mcp__gateway__graph_call|gateway__graph_call)
     case "$SUB_TOOL" in
       update_node)
         REMINDERS="$REMINDERS\n- graph_call > update_node: silently ignores status/type changes. Use 'query' with raw Cypher SET."

@@ -105,8 +105,8 @@ resolve_cwd() {
   printf '%s' "/c/dev/claude-skills-suite"
 }
 
-# Todos have ttl_hours NULL; include those. Do not copy the poller's
-# `created_at > now() - make_interval(hours => ttl_hours)` which drops them.
+# Todos have ttl_hours NULL; include those. Same predicate as
+# hooks/interagent-monitor-poll.sh (fixed 2026-09-20).
 # Skip our own outbound mail (a self-reply would otherwise recurse).
 SQL="SELECT coalesce(json_agg(json_build_object('id',id,'title',title,'from',from_agent,'refs',context_refs)),'[]') FROM interagent_assignments WHERE status='pending' AND to_target='${INTERAGENT_MACHINE}' AND from_agent <> '${INTERAGENT_MACHINE}' AND (ttl_hours IS NULL OR created_at > now() - make_interval(hours => ttl_hours));"
 
